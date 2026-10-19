@@ -1,0 +1,133 @@
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-makmo-navy: #113861;
+  --color-makmo-navy-dark: #0a233d;
+  --color-makmo-navy-light: #1b4d82;
+  --color-makmo-teal: #20b4a7;
+  --color-makmo-teal-light: #2dd4c4;
+  --color-makmo-teal-dark: #178a7f;
+
+  /* Escala primária: Tradicional cor Laranja Makmo / Âmbar Industrial */
+  --color-amber-50: #fff7ed;
+  --color-amber-100: #ffedd5;
+  --color-amber-200: #fed7aa;
+  --color-amber-300: #fdba74;
+  --color-amber-400: #fb923c;
+  --color-amber-500: #f97316;
+  --color-amber-600: #ea580c;
+  --color-amber-700: #c2410c;
+  --color-amber-800: #9a3412;
+  --color-amber-900: #7c2d12;
+  --color-amber-950: #431407;
+}
+
+:root {
+  --accent: #f97316;
+  --accent-hover: #ea580c;
+  --accent-subtle: rgba(249, 115, 22, 0.12);
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-raised: #f8fafc;
+  --surface-card: #ffffff;
+  --surface-hover: #f1f5f9;
+  --border: #dcdfe4;
+  --border-subtle: #eaecef;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+}
+
+html:not(.dark) {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-raised: #f8fafc;
+  --surface-card: #ffffff;
+  --surface-hover: #f1f5f9;
+  --border: #dcdfe4;
+  --border-subtle: #eaecef;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+}
+
+@layer base {
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #ffffff;
+    color: #0f172a;
+  }
+
+  html:not(.dark) body {
+    background-color: #ffffff;
+    color: #0f172a;
+    background-image: 
+      radial-gradient(1200px 500px at 50% -60px, rgba(249, 115, 22, 0.05), transparent 75%),
+      linear-gradient(to right, rgba(15, 23, 42, 0.02) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(15, 23, 42, 0.02) 1px, transparent 1px);
+    background-size: 100% 100%, 32px 32px, 32px 32px;
+    background-attachment: fixed;
+  }
+
+  html.dark body,
+  .dark body {
+    background-color: #0d1117;
+    color: #f1f5f9;
+    background-image: 
+      radial-gradient(1200px 500px at 50% -60px, rgba(249, 115, 22, 0.08), transparent 75%),
+      linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 100% 100%, 32px 32px, 32px 32px;
+    background-attachment: fixed;
+  }
+
+  /* Monospaced numerals for horimeter values and dense tabular figures */
+  .font-mono-numbers {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .font-industrial {
+    font-family: 'Chakra Petch', 'Inter', sans-serif;
+    letter-spacing: 0.025em;
+  }
+}
+
+@keyframes bellWiggle {
+  0%, 100% { transform: rotate(0deg); }
+  20%, 60% { transform: rotate(14deg); }
+  40%, 80% { transform: rotate(-14deg); }
+}
+
+.animate-bell {
+  animation: bellWiggle 1.8s ease-in-out infinite;
+}
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #111827 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide navigation, mobile tabs and floating interactive elements during print */
+  nav,
+  aside,
+  header,
+  #mobile-bottom-nav,
+  button,
+  input,
+  select {
+    display: none !important;
+  }
+}
+
+

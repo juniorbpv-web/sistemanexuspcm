@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Equipamentos da frota
+    match /equipments/{equipmentId} {
+      allow read, write: if true;
+    }
+
+    // Lançamentos de Parte Diária
+    match /daily_logs/{logId} {
+      allow read, write: if true;
+    }
+
+    // Lançamentos de Abastecimento dos Comboios (Saídas de Diesel)
+    match /fuel_dispenses/{dispenseId} {
+      allow read, write: if true;
+    }
+
+    // Entradas de Diesel (Tanque / Cargas de Combustível)
+    match /fuel_entries/{entryId} {
+      allow read, write: if true;
+    }
+
+    // Arquivos e Notas Fiscais de Combustível
+    match /fuel_invoice_files/{fileId} {
+      allow read, write: if true;
+    }
+
+    // Arquivos e Documentos de Equipamentos da Base de Dados
+    match /equipment_files/{fileId} {
+      allow read, write: if true;
+    }
+
+    // Planos de Manutenção Preventiva (PCM)
+    match /preventive_plans/{planId} {
+      allow read, write: if true;
+    }
+
+    // Histórico de Preventivas Realizadas
+    match /preventive_records/{recordId} {
+      allow read, write: if true;
+    }
+
+    // Descontos em Medição por Dias Parados
+    match /measurement_deductions/{deductionId} {
+      allow read, write: if true;
+    }
+
+    // Manutenções Corretivas Realizadas
+    match /corrective_maintenances/{correctiveId} {
+      allow read, write: if true;
+    }
+
+    // Histórico de Envios Automáticos de Relatórios por E-mail (08:00)
+    match /scheduled_reports_logs/{logId} {
+      allow read, write: if true;
+    }
+
+    // Configurações gerais do sistema (SMTP, preferências)
+    match /app_settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    // Controle de Acesso: Usuários do Sistema
+    match /app_users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Controle de Acesso: Obras e Frentes de Serviço
+    match /app_projects/{projectId} {
+      allow read, write: if true;
+    }
+
+    // Fallback de teste de conexão
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+
+    // Permissão global para todas as coleções operacionais
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

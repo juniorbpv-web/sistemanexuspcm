@@ -1,0 +1,258 @@
+{
+  "entities": {
+    "Equipment": {
+      "title": "Equipment",
+      "description": "Máquina ou equipamento de obra cadastrado na frota da Makmo Infraestrutura",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Identificador único do equipamento" },
+        "type": { "type": "string", "description": "Equipamento / Tipo de máquina (ex: Escavadeira, Retroescavadeira, Caminhão)" },
+        "plate": { "type": "string", "description": "Placa do equipamento" },
+        "prefix": { "type": "string", "description": "Prefixo ou código interno da frota (ex: RET-01, ESC-02)" },
+        "model": { "type": "string", "description": "Modelo do equipamento (ex: 416F2, PC200)" },
+        "brand": { "type": "string", "description": "Marca do fabricante (ex: Caterpillar, Komatsu, Volvo)" },
+        "supplier": { "type": "string", "description": "Fornecedor, empresa locadora ou indicação de frota própria" },
+        "location": { "type": "string", "description": "Obra onde o equipamento está alocado" },
+        "code": { "type": "string", "description": "Código de busca do equipamento (Placa ou Prefixo)" },
+        "brandModel": { "type": "string", "description": "Marca e modelo combinados" },
+        "operator": { "type": "string", "description": "Nome do operador ou motorista" },
+        "currentHourMeter": { "type": "number", "description": "Última leitura registrada do horímetro (horas)" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Data de cadastro no sistema" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Data da última atualização" }
+      },
+      "required": ["id", "code", "type", "currentHourMeter", "createdAt", "updatedAt"]
+    },
+    "DailyLog": {
+      "title": "DailyLog",
+      "description": "Lançamento diário de apontamento de horas e utilização de equipamento",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Identificador único do apontamento" },
+        "equipmentCode": { "type": "string", "description": "Placa ou prefixo do equipamento apontado" },
+        "equipmentType": { "type": "string", "description": "Tipo do equipamento no momento do lançamento" },
+        "equipmentBrandModel": { "type": "string", "description": "Marca e modelo do equipamento" },
+        "date": { "type": "string", "description": "Data do turno de operação no formato YYYY-MM-DD" },
+        "operator": { "type": "string", "description": "Nome do operador no turno" },
+        "location": { "type": "string", "description": "Obra ou local do serviço executado" },
+        "initialHourMeter": { "type": "number", "description": "Horímetro inicial no início do turno" },
+        "finalHourMeter": { "type": "number", "description": "Horímetro final no término do turno" },
+        "workedHours": { "type": "number", "description": "Total de horas líquidas trabalhadas" },
+        "maintenanceHours": { "type": "number", "description": "Horas em manutenção ou parada de conserto" },
+        "notes": { "type": "string", "description": "Observações operacionais do turno" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp de criação" }
+      },
+      "required": ["id", "equipmentCode", "date", "initialHourMeter", "finalHourMeter", "workedHours", "createdAt"]
+    },
+    "FuelDispense": {
+      "title": "FuelDispense",
+      "description": "Lançamento de abastecimento efetuado por um comboio (saída de diesel)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Identificador único do abastecimento" },
+        "convoyPlate": { "type": "string", "description": "Placa do comboio (RTW1C01, DZA7G30, SPF2C66)" },
+        "equipmentCode": { "type": "string", "description": "Prefixo ou placa do equipamento abastecido" },
+        "equipmentType": { "type": "string", "description": "Tipo do equipamento abastecido" },
+        "date": { "type": "string", "description": "Data do abastecimento no formato YYYY-MM-DD" },
+        "initialMeter": { "type": "number", "description": "Hora/Km Iniciante da bomba medidora" },
+        "finalMeter": { "type": "number", "description": "Hora/Km Encerrante da bomba medidora" },
+        "liters": { "type": "number", "description": "Total de litros calculado (Encerrante - Iniciante)" },
+        "operator": { "type": "string", "description": "Operador ou responsável pelo abastecimento" },
+        "notes": { "type": "string", "description": "Observações adicionais" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp de criação" }
+      },
+      "required": ["id", "convoyPlate", "equipmentCode", "date", "initialMeter", "finalMeter", "liters", "createdAt"]
+    },
+    "FuelEntry": {
+      "title": "FuelEntry",
+      "description": "Entrada de combustível no tanque ou comboio",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Identificador único da entrada" },
+        "date": { "type": "string", "description": "Data do recebimento no formato YYYY-MM-DD" },
+        "liters": { "type": "number", "description": "Volume de litros recebidos" },
+        "totalValue": { "type": "number", "description": "Valor total da entrada em Reais (R$)" },
+        "unitPrice": { "type": "number", "description": "Valor unitário por litro em Reais (R$/L)" },
+        "supplier": { "type": "string", "description": "Fornecedor ou distribuidora de combustível" },
+        "invoiceNumber": { "type": "string", "description": "Número da Nota Fiscal" },
+        "destination": { "type": "string", "description": "Destino do diesel (Tanque Central ou Comboio específico)" },
+        "responsible": { "type": "string", "description": "Responsável pelo recebimento" },
+        "notes": { "type": "string", "description": "Observações adicionais" },
+        "attachmentUrl": { "type": "string", "description": "URL ou Base64 do anexo (PDF ou JPEG/JPG)" },
+        "attachmentName": { "type": "string", "description": "Nome do arquivo anexado" },
+        "attachmentType": { "type": "string", "description": "Tipo do anexo (PDF, JPEG ou JPG)" },
+        "attachmentSize": { "type": "number", "description": "Tamanho do arquivo em bytes" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp de criação" }
+      },
+      "required": ["id", "date", "liters", "createdAt"]
+    },
+    "FuelInvoiceFile": {
+      "title": "FuelInvoiceFile",
+      "description": "Arquivo de nota fiscal ou comprovante de recebimento de combustível (PDF ou JPEG/JPG)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Identificador único do arquivo" },
+        "name": { "type": "string", "description": "Nome do arquivo (ex: NF_001.pdf)" },
+        "fileType": { "type": "string", "description": "Tipo do arquivo (PDF, JPEG ou JPG)" },
+        "mimeType": { "type": "string", "description": "MIME type (application/pdf ou image/jpeg)" },
+        "size": { "type": "number", "description": "Tamanho do arquivo em bytes" },
+        "uploadedAt": { "type": "string", "format": "date-time", "description": "Data e hora de envio em formato ISO" },
+        "formattedDate": { "type": "string", "description": "Data e hora formatada para exibição" },
+        "notes": { "type": "string", "description": "Observações ou identificação da NF" },
+        "dataUrl": { "type": "string", "description": "Conteúdo codificado em Base64 para download e visualização" }
+      },
+      "required": ["id", "name", "fileType", "uploadedAt"]
+    },
+    "PreventivePlan": {
+      "title": "PreventivePlan",
+      "description": "Plano ativo de manutenção preventiva configurado para um equipamento",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Identificador do plano" },
+        "equipmentId": { "type": "string", "description": "ID do equipamento associado" },
+        "equipmentCode": { "type": "string", "description": "Prefixo ou placa do equipamento" },
+        "intervalType": { "type": "string", "description": "Tipo do intervalo (ex: 250 Horas, 10.000 KM)" },
+        "intervalUnit": { "type": "string", "description": "Unidade de controle (HORAS ou KM)" },
+        "intervalValue": { "type": "number", "description": "Valor numérico do intervalo" },
+        "lastReviewDate": { "type": "string", "description": "Data da última revisão" },
+        "lastReviewHourMeter": { "type": "number", "description": "Horímetro da última revisão" },
+        "lastReviewKm": { "type": "number", "description": "Quilometragem da última revisão" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "equipmentId", "intervalType", "intervalUnit", "intervalValue"]
+    },
+    "PreventiveRecord": {
+      "title": "PreventiveRecord",
+      "description": "Registro perene de manutenção preventiva executada na oficina ou campo",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Identificador do registro" },
+        "equipmentId": { "type": "string", "description": "ID do equipamento" },
+        "equipmentCode": { "type": "string", "description": "Prefixo ou placa" },
+        "date": { "type": "string", "description": "Data da revisão YYYY-MM-DD" },
+        "hourMeter": { "type": "number", "description": "Horímetro no momento da revisão" },
+        "km": { "type": "number", "description": "KM no momento da revisão" },
+        "type": { "type": "string", "description": "Tipo de preventiva realizada" },
+        "intervalType": { "type": "string", "description": "Intervalo utilizado" },
+        "intervalValue": { "type": "number", "description": "Valor do intervalo" },
+        "nextReviewValue": { "type": "number", "description": "Próxima revisão calculada" },
+        "servicesPerformed": { "type": "string", "description": "Serviços realizados" },
+        "partsReplaced": { "type": "string", "description": "Peças e filtros utilizados" },
+        "responsible": { "type": "string", "description": "Responsável ou mecânico" },
+        "notes": { "type": "string", "description": "Observações adicionais" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "equipmentId", "date", "type", "servicesPerformed", "responsible"]
+    },
+    "MeasurementDeduction": {
+      "title": "MeasurementDeduction",
+      "description": "Registro de paralisação e cálculo de desconto em medição contratual",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Identificador único da paralisação" },
+        "equipmentId": { "type": "string", "description": "ID do equipamento associado" },
+        "prefix": { "type": "string", "description": "Prefixo do equipamento" },
+        "equipmentType": { "type": "string", "description": "Equipamento / Tipo" },
+        "type": { "type": "string" },
+        "brand": { "type": "string" },
+        "model": { "type": "string" },
+        "supplier": { "type": "string", "description": "Fornecedor / Locadora" },
+        "location": { "type": "string", "description": "Obra atual" },
+        "operator": { "type": "string" },
+        "plate": { "type": "string" },
+        "measurementValue": { "type": "number", "description": "Valor da Medição em R$" },
+        "dailyRate": { "type": "number", "description": "Valor da diária = Medição / 30" },
+        "startDate": { "type": "string", "description": "Data inicial YYYY-MM-DD" },
+        "endDate": { "type": "string", "description": "Data final YYYY-MM-DD" },
+        "isOngoing": { "type": "boolean", "description": "Se equipamento continua parado" },
+        "stoppedDays": { "type": "number", "description": "Quantidade de dias parados" },
+        "discountValue": { "type": "number", "description": "Valor do desconto = Diária * Dias" },
+        "reason": { "type": "string", "description": "Motivo da paralisação" },
+        "notes": { "type": "string", "description": "Observações" },
+        "status": { "type": "string", "description": "Status da apuração" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "equipmentId", "prefix", "measurementValue", "dailyRate", "startDate", "stoppedDays", "discountValue", "reason", "status"]
+    },
+    "AppUser": {
+      "title": "AppUser",
+      "description": "Usuário do sistema com controle de acesso, perfis e permissões por obra",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Identificador do usuário" },
+        "name": { "type": "string", "description": "Nome completo" },
+        "email": { "type": "string", "description": "E-mail de acesso" },
+        "username": { "type": "string", "description": "Login único de usuário" },
+        "password": { "type": "string", "description": "Senha de acesso" },
+        "role": { "type": "string", "description": "Perfil: admin, gestor, controlador ou visualizador" },
+        "status": { "type": "string", "description": "Status: active ou inactive" },
+        "allowedProjects": { "type": "string", "description": "Lista de obras autorizadas ou ['all']" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "username", "password", "role", "status", "allowedProjects"]
+    },
+    "AppProject": {
+      "title": "AppProject",
+      "description": "Cadastro de obra ou frente operacional independente",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Identificador da obra" },
+        "code": { "type": "string", "description": "Código exclusivo da obra (ex: 065, 062 - PA)" },
+        "name": { "type": "string", "description": "Nome oficial da obra" },
+        "status": { "type": "string", "description": "Status: active ou inactive" },
+        "description": { "type": "string", "description": "Descrição e trecho" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "code", "name", "status"]
+    }
+  },
+  "firestore": {
+    "/equipments/{equipmentId}": {
+      "schema": "Equipment",
+      "description": "Coleção de máquinas e veículos da frota da Makmo Infraestrutura"
+    },
+    "/daily_logs/{logId}": {
+      "schema": "DailyLog",
+      "description": "Coleção de lançamentos de parte diária de equipamentos"
+    },
+    "/fuel_dispenses/{dispenseId}": {
+      "schema": "FuelDispense",
+      "description": "Coleção de saídas e abastecimentos efetuados pelos comboios"
+    },
+    "/fuel_entries/{entryId}": {
+      "schema": "FuelEntry",
+      "description": "Coleção de entradas e recebimentos de diesel"
+    },
+    "/fuel_invoice_files/{fileId}": {
+      "schema": "FuelInvoiceFile",
+      "description": "Coleção de arquivos de notas fiscais e comprovantes de diesel"
+    },
+    "/preventive_plans/{planId}": {
+      "schema": "PreventivePlan",
+      "description": "Coleção de planos de manutenção preventiva dos equipamentos"
+    },
+    "/preventive_records/{recordId}": {
+      "schema": "PreventiveRecord",
+      "description": "Coleção do histórico de manutenções preventivas executadas"
+    },
+    "/measurement_deductions/{deductionId}": {
+      "schema": "MeasurementDeduction",
+      "description": "Coleção de descontos em medição e paralisações de equipamentos"
+    },
+    "/app_users/{userId}": {
+      "schema": "AppUser",
+      "description": "Coleção de usuários e controle de permissões do sistema"
+    },
+    "/app_projects/{projectId}": {
+      "schema": "AppProject",
+      "description": "Coleção de obras e frentes de serviço cadastradas"
+    },
+    "/scheduled_reports_logs/{logId}": {
+      "schema": "ScheduledReportLog",
+      "description": "Histórico de disparos diários de relatórios por e-mail"
+    }
+  }
+}

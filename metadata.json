@@ -1,0 +1,8 @@
+{
+  "name": "Remix Gestão De Frotas",
+  "description": "Sistema Makmo de Gestão de Frotas \u0026 Obras e Gestão de Combustível com apontamento de parte diária, controle de abastecimentos e horas trabalhadas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
