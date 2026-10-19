@@ -363,17 +363,17 @@ export function clearFuelLocalStorage(): void {
 export function loadFuelDispenses(): FuelDispense[] {
   try {
     const raw = localStorage.getItem(FUEL_DISPENSES_KEY);
-    const sync779Done = localStorage.getItem('makmo_fuel_sync_v779') === 'true';
+    const sync810Done = localStorage.getItem('makmo_fuel_sync_v810') === 'true';
 
     if (!raw) {
       localStorage.setItem(FUEL_DISPENSES_KEY, JSON.stringify(INITIAL_FUEL_DISPENSES));
       localStorage.setItem(FUEL_SYNC_KEY, 'true');
-      localStorage.setItem('makmo_fuel_sync_v779', 'true');
+      localStorage.setItem('makmo_fuel_sync_v810', 'true');
       return INITIAL_FUEL_DISPENSES;
     }
     let parsed: FuelDispense[] = Array.isArray(JSON.parse(raw)) ? JSON.parse(raw) : [];
 
-    if (!sync779Done || parsed.length < INITIAL_FUEL_DISPENSES.length) {
+    if (!sync810Done || parsed.length < INITIAL_FUEL_DISPENSES.length) {
       const dispMap = new Map<string, FuelDispense>();
       INITIAL_FUEL_DISPENSES.forEach((d) => dispMap.set(d.id, d));
       parsed.forEach((d) => {
@@ -388,7 +388,7 @@ export function loadFuelDispenses(): FuelDispense[] {
       }));
       localStorage.setItem(FUEL_DISPENSES_KEY, JSON.stringify(merged));
       localStorage.setItem(FUEL_SYNC_KEY, 'true');
-      localStorage.setItem('makmo_fuel_sync_v779', 'true');
+      localStorage.setItem('makmo_fuel_sync_v810', 'true');
       return merged;
     }
 
