@@ -30,6 +30,7 @@ import {
   ShieldCheck,
   Truck,
   Info,
+  Database,
 } from 'lucide-react';
 
 interface AdminManagementModalProps {
@@ -45,6 +46,7 @@ interface AdminManagementModalProps {
   onDeleteUser: (userId: string) => void;
   onSaveProject: (project: AppProject) => void;
   onDeleteProject: (projectId: string) => void;
+  onOpenSupabaseConfig?: () => void;
 }
 
 export const AdminManagementModal: React.FC<AdminManagementModalProps> = ({
@@ -60,6 +62,7 @@ export const AdminManagementModal: React.FC<AdminManagementModalProps> = ({
   onDeleteUser,
   onSaveProject,
   onDeleteProject,
+  onOpenSupabaseConfig,
 }) => {
   const [activeTab, setActiveTab] = useState<'users' | 'projects'>('users');
   const [searchTerm, setSearchTerm] = useState('');
@@ -448,14 +451,28 @@ export const AdminManagementModal: React.FC<AdminManagementModalProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={activeTab === 'users' ? handleOpenNewUser : handleOpenNewProject}
-            className="bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-bold px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>{activeTab === 'users' ? 'Novo Usuário' : 'Abrir Nova Obra'}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {onOpenSupabaseConfig && (
+              <button
+                type="button"
+                onClick={onOpenSupabaseConfig}
+                className="bg-teal-600 hover:bg-teal-500 active:scale-95 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                title="Configurar Conexão e Sincronização Supabase (Compartilhamento entre computadores)"
+              >
+                <Database className="w-4 h-4" />
+                <span className="hidden sm:inline">Banco Supabase</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={activeTab === 'users' ? handleOpenNewUser : handleOpenNewProject}
+              className="bg-amber-500 hover:bg-amber-400 active:scale-95 text-black font-bold px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>{activeTab === 'users' ? 'Novo Usuário' : 'Abrir Nova Obra'}</span>
+            </button>
+          </div>
         </div>
 
         {/* Tab Content: Users */}

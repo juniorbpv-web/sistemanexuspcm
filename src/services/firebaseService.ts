@@ -12,7 +12,17 @@ import {
   writeBatch,
   Unsubscribe,
 } from 'firebase/firestore';
-import { db, auth, testFirestoreConnection } from '../lib/firebase';
+import { db, auth, testFirestoreConnection as rawTestFirestore } from '../lib/firebase';
+import {
+  isSupabaseConfigured,
+  subscribeSupabaseCollection,
+  upsertRecordToSupabase,
+  deleteRecordFromSupabase,
+  clearCollectionFromSupabase,
+  seedSupabaseInitialData,
+  testSupabaseConnection as testSupabaseConnectionReal,
+} from './supabaseService';
+import { OFFICIAL_MEASUREMENT_DEDUCTIONS } from '../data/officialDeductionsData';
 import {
   Equipment,
   DailyLog,
@@ -134,6 +144,11 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
  * Checks if remote collections are empty and seeds initial data if necessary.
  */
 export async function seedInitialDataIfEmpty(): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await seedSupabaseInitialData(false);
+    return;
+  }
+
   try {
     const eqSnapshot = await getDocs(collection(db, EQUIPMENTS_COLLECTION));
     if (eqSnapshot.empty) {
@@ -458,6 +473,12 @@ export async function seedInitialDataIfEmpty(): Promise<void> {
  * Does NOT touch or alter any other collections (equipments, logs, fuel, etc.).
  */
 export async function clearPreventiveDataFromFirestore(): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await clearCollectionFromSupabase(PREVENTIVE_PLANS_COLLECTION);
+    await clearCollectionFromSupabase(PREVENTIVE_RECORDS_COLLECTION);
+    return;
+  }
+
   try {
     const plansSnap = await getDocs(collection(db, PREVENTIVE_PLANS_COLLECTION));
     if (!plansSnap.empty) {
@@ -489,6 +510,12 @@ export async function clearPreventiveDataFromFirestore(): Promise<void> {
  * ensuring the fuel control tab is clean and starts fresh at 0.
  */
 export async function clearFuelDataFromFirestore(): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await clearCollectionFromSupabase(FUEL_ENTRIES_COLLECTION);
+    await clearCollectionFromSupabase(FUEL_DISPENSES_COLLECTION);
+    return;
+  }
+
   try {
     const entriesSnap = await getDocs(collection(db, FUEL_ENTRIES_COLLECTION));
     if (!entriesSnap.empty) {
@@ -521,6 +548,11 @@ export async function clearFuelDataFromFirestore(): Promise<void> {
  * Does NOT touch or alter any other collections (equipments, logs, fuel, etc.).
  */
 export async function clearCorrectiveDataFromFirestore(): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await clearCollectionFromSupabase(CORRECTIVE_MAINTENANCES_COLLECTION);
+    return;
+  }
+
   try {
     const correctivesSnap = await getDocs(collection(db, CORRECTIVE_MAINTENANCES_COLLECTION));
     if (!correctivesSnap.empty) {
@@ -544,6 +576,29 @@ export function subscribeEquipments(
   onUpdate: (equipments: Equipment[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
+  if (isSupabaseConfigured()) {
+    return subscribeSupabaseCollection<Equipment>(
+      EQUIPMENTS_COLLECTION,
+      (remoteItems) => {
+        const mergedMap = new Map<string, Equipment>();
+        INITIAL_EQUIPMENTS.forEach((eq) => mergedMap.set(eq.id, eq));
+        loadEquipments().forEach((eq) => {
+          if (eq && eq.id) mergedMap.set(eq.id, eq);
+        });
+        remoteItems.forEach((eq) => {
+          if (eq && eq.id) mergedMap.set(eq.id, eq);
+        });
+        const finalItems = Array.from(mergedMap.values()).sort((a, b) =>
+          (a.code || '').localeCompare(b.code || '')
+        );
+        saveEquipments(finalItems);
+        onUpdate(finalItems);
+      },
+      INITIAL_EQUIPMENTS,
+      onError
+    );
+  }
+
   const q = query(collection(db, EQUIPMENTS_COLLECTION), orderBy('code', 'asc'));
 
   return onSnapshot(
@@ -613,6 +668,23 @@ export function subscribeDailyLogs(
   onUpdate: (logs: DailyLog[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
+  if (isSupabaseConfigured()) {
+    return subscribeSupabaseCollection<DailyLog>(
+      DAILY_LOGS_COLLECTION,
+      (remoteLogs) => {
+        const logsMap = new Map<string, DailyLog>();
+        INITIAL_LOGS.forEach((log) => logsMap.set(log.id, log));
+        loadDailyLogs().forEach((log) => logsMap.set(log.id, log));
+        remoteLogs.forEach((log) => logsMap.set(log.id, log));
+        const sortedItems = sortDailyLogsAscending(Array.from(logsMap.values()));
+        saveDailyLogs(sortedItems);
+        onUpdate(sortedItems);
+      },
+      INITIAL_LOGS,
+      onError
+    );
+  }
+
   const q = query(collection(db, DAILY_LOGS_COLLECTION), orderBy('date', 'asc'));
 
   return onSnapshot(
@@ -685,12 +757,17 @@ function sanitizeEquipmentForFirestore(equipment: Equipment): any {
 }
 
 /**
- * Adds or saves an equipment to Firestore.
+ * Adds or saves an equipment to Firestore or Supabase.
  */
 export async function saveEquipmentToFirestore(equipment: Equipment): Promise<void> {
+  const sanitized = sanitizeEquipmentForFirestore(equipment);
+  if (isSupabaseConfigured()) {
+    await upsertRecordToSupabase(EQUIPMENTS_COLLECTION, equipment.id, sanitized);
+    return;
+  }
+
   try {
     const docRef = doc(db, EQUIPMENTS_COLLECTION, equipment.id);
-    const sanitized = sanitizeEquipmentForFirestore(equipment);
     await setDoc(docRef, sanitized, { merge: true });
   } catch (err) {
     console.error('Failed to save equipment to Firestore:', err);
@@ -699,12 +776,17 @@ export async function saveEquipmentToFirestore(equipment: Equipment): Promise<vo
 }
 
 /**
- * Updates an existing equipment in Firestore.
+ * Updates an existing equipment in Firestore or Supabase.
  */
 export async function updateEquipmentInFirestore(equipment: Equipment): Promise<void> {
+  const sanitized = sanitizeEquipmentForFirestore(equipment);
+  if (isSupabaseConfigured()) {
+    await upsertRecordToSupabase(EQUIPMENTS_COLLECTION, equipment.id, sanitized);
+    return;
+  }
+
   try {
     const docRef = doc(db, EQUIPMENTS_COLLECTION, equipment.id);
-    const sanitized = sanitizeEquipmentForFirestore(equipment);
     await setDoc(docRef, sanitized, { merge: true });
   } catch (err) {
     console.error('Failed to update equipment in Firestore:', err);
@@ -713,9 +795,14 @@ export async function updateEquipmentInFirestore(equipment: Equipment): Promise<
 }
 
 /**
- * Deletes an equipment from Firestore.
+ * Deletes an equipment from Firestore or Supabase.
  */
 export async function deleteEquipmentFromFirestore(id: string): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await deleteRecordFromSupabase(EQUIPMENTS_COLLECTION, id);
+    return;
+  }
+
   try {
     const docRef = doc(db, EQUIPMENTS_COLLECTION, id);
     await deleteDoc(docRef);
@@ -732,6 +819,23 @@ export async function saveDailyLogToFirestore(
   log: DailyLog,
   equipmentToUpdate?: { id: string; finalHourMeter: number }
 ): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await upsertRecordToSupabase(DAILY_LOGS_COLLECTION, log.id, log);
+    if (equipmentToUpdate) {
+      const allEq = loadEquipments();
+      const eq = allEq.find((e) => e.id === equipmentToUpdate.id);
+      if (eq) {
+        const updatedEq = {
+          ...eq,
+          currentHourMeter: equipmentToUpdate.finalHourMeter,
+          updatedAt: new Date().toISOString(),
+        };
+        await upsertRecordToSupabase(EQUIPMENTS_COLLECTION, equipmentToUpdate.id, updatedEq);
+      }
+    }
+    return;
+  }
+
   try {
     const batch = writeBatch(db);
 
@@ -756,9 +860,14 @@ export async function saveDailyLogToFirestore(
 }
 
 /**
- * Deletes a daily log from Firestore.
+ * Deletes a daily log from Firestore or Supabase.
  */
 export async function deleteDailyLogFromFirestore(id: string): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await deleteRecordFromSupabase(DAILY_LOGS_COLLECTION, id);
+    return;
+  }
+
   try {
     const docRef = doc(db, DAILY_LOGS_COLLECTION, id);
     await deleteDoc(docRef);
@@ -769,9 +878,14 @@ export async function deleteDailyLogFromFirestore(id: string): Promise<void> {
 }
 
 /**
- * Safely synchronizes baseline defaults into Firestore without deleting any existing data.
+ * Safely synchronizes baseline defaults into Firestore or Supabase without deleting any existing data.
  */
 export async function restoreFirestoreDefaults(): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await seedSupabaseInitialData(true);
+    return;
+  }
+
   try {
     // Non-destructive safe upsert: NEVER delete existing user data!
     let insertBatch = writeBatch(db);
@@ -846,6 +960,32 @@ export function subscribeFuelDispenses(
   onUpdate: (dispenses: FuelDispense[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
+  if (isSupabaseConfigured()) {
+    return subscribeSupabaseCollection<FuelDispense>(
+      FUEL_DISPENSES_COLLECTION,
+      (remoteItems) => {
+        const dispMap = new Map<string, FuelDispense>();
+        INITIAL_FUEL_DISPENSES.forEach((d) => dispMap.set(d.id, d));
+        loadFuelDispenses().forEach((d) => dispMap.set(d.id, d));
+        remoteItems.forEach((d) => {
+          if ((d.convoyPlate as string) === 'SFC2C66') {
+            d.convoyPlate = 'SPF2C66';
+          }
+          dispMap.set(d.id, d);
+        });
+
+        const finalItems = Array.from(dispMap.values()).sort(
+          (a, b) => a.date.localeCompare(b.date) || a.initialMeter - b.initialMeter
+        );
+
+        saveFuelDispenses(finalItems);
+        onUpdate(finalItems);
+      },
+      INITIAL_FUEL_DISPENSES,
+      onError
+    );
+  }
+
   const q = query(collection(db, FUEL_DISPENSES_COLLECTION), orderBy('date', 'asc'));
 
   return onSnapshot(
@@ -923,6 +1063,55 @@ export function subscribeFuelEntries(
   onUpdate: (entries: FuelEntry[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
+  if (isSupabaseConfigured()) {
+    return subscribeSupabaseCollection<FuelEntry>(
+      FUEL_ENTRIES_COLLECTION,
+      async (remoteItems) => {
+        const legacyPlaceholderIds = ['entry-rtw-001', 'entry-dza-001', 'entry-spf-001'];
+        const entriesMap = new Map<string, FuelEntry>();
+        INITIAL_FUEL_ENTRIES.forEach((e) => entriesMap.set(e.id, e));
+        loadFuelEntries().forEach((e) => {
+          if (!legacyPlaceholderIds.includes(e.id)) {
+            entriesMap.set(e.id, e);
+          }
+        });
+        remoteItems.forEach((e) => {
+          if (!legacyPlaceholderIds.includes(e.id)) {
+            if (e.destination && e.destination.includes('SFC2C66')) {
+              e.destination = e.destination.replace(/SFC2C66/g, 'SPF2C66');
+            }
+            entriesMap.set(e.id, e);
+          }
+        });
+
+        const items = Array.from(entriesMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+
+        try {
+          const localFiles = await loadInvoiceFilesFromIndexedDB();
+          const fileMap = new Map(localFiles.map((f) => [f.id, f]));
+
+          const hydrated = items.map((entry) => {
+            if ((!entry.attachmentUrl || entry.attachmentUrl.length === 0) && entry.attachmentName) {
+              const matched = fileMap.get(`file_entry_${entry.id}`);
+              if (matched && matched.dataUrl) {
+                return { ...entry, attachmentUrl: matched.dataUrl };
+              }
+            }
+            return entry;
+          });
+
+          saveFuelEntries(hydrated);
+          onUpdate(hydrated);
+        } catch {
+          saveFuelEntries(items);
+          onUpdate(items);
+        }
+      },
+      INITIAL_FUEL_ENTRIES,
+      onError
+    );
+  }
+
   const q = query(collection(db, FUEL_ENTRIES_COLLECTION), orderBy('date', 'asc'));
 
   return onSnapshot(
@@ -991,9 +1180,14 @@ export function subscribeFuelEntries(
 }
 
 /**
- * Saves a fuel dispense log to Firestore.
+ * Saves a fuel dispense log to Firestore or Supabase.
  */
 export async function saveFuelDispenseToFirestore(dispense: FuelDispense): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await upsertRecordToSupabase(FUEL_DISPENSES_COLLECTION, dispense.id, dispense);
+    return;
+  }
+
   try {
     const docRef = doc(db, FUEL_DISPENSES_COLLECTION, dispense.id);
     const sanitized: Record<string, any> = {};
@@ -1008,9 +1202,14 @@ export async function saveFuelDispenseToFirestore(dispense: FuelDispense): Promi
 }
 
 /**
- * Updates an existing fuel dispense in Firestore.
+ * Updates an existing fuel dispense in Firestore or Supabase.
  */
 export async function updateFuelDispenseInFirestore(dispense: FuelDispense): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await upsertRecordToSupabase(FUEL_DISPENSES_COLLECTION, dispense.id, dispense);
+    return;
+  }
+
   try {
     const docRef = doc(db, FUEL_DISPENSES_COLLECTION, dispense.id);
     const sanitized: Record<string, any> = {};
@@ -1025,9 +1224,14 @@ export async function updateFuelDispenseInFirestore(dispense: FuelDispense): Pro
 }
 
 /**
- * Deletes a fuel dispense log from Firestore.
+ * Deletes a fuel dispense log from Firestore or Supabase.
  */
 export async function deleteFuelDispenseFromFirestore(id: string): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await deleteRecordFromSupabase(FUEL_DISPENSES_COLLECTION, id);
+    return;
+  }
+
   try {
     const docRef = doc(db, FUEL_DISPENSES_COLLECTION, id);
     await deleteDoc(docRef);
@@ -1038,9 +1242,14 @@ export async function deleteFuelDispenseFromFirestore(id: string): Promise<void>
 }
 
 /**
- * Saves a fuel entry to Firestore.
+ * Saves a fuel entry to Firestore or Supabase.
  */
 export async function saveFuelEntryToFirestore(entry: FuelEntry): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await upsertRecordToSupabase(FUEL_ENTRIES_COLLECTION, entry.id, entry);
+    return;
+  }
+
   try {
     const docRef = doc(db, FUEL_ENTRIES_COLLECTION, entry.id);
     const payload = prepareFuelEntryForFirestore(entry, false);
@@ -1052,9 +1261,14 @@ export async function saveFuelEntryToFirestore(entry: FuelEntry): Promise<void> 
 }
 
 /**
- * Updates an existing fuel entry in Firestore.
+ * Updates an existing fuel entry in Firestore or Supabase.
  */
 export async function updateFuelEntryInFirestore(entry: FuelEntry): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await upsertRecordToSupabase(FUEL_ENTRIES_COLLECTION, entry.id, entry);
+    return;
+  }
+
   try {
     const docRef = doc(db, FUEL_ENTRIES_COLLECTION, entry.id);
     const payload = prepareFuelEntryForFirestore(entry, true);
@@ -1066,9 +1280,14 @@ export async function updateFuelEntryInFirestore(entry: FuelEntry): Promise<void
 }
 
 /**
- * Deletes a fuel entry from Firestore.
+ * Deletes a fuel entry from Firestore or Supabase.
  */
 export async function deleteFuelEntryFromFirestore(id: string): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await deleteRecordFromSupabase(FUEL_ENTRIES_COLLECTION, id);
+    return;
+  }
+
   try {
     const docRef = doc(db, FUEL_ENTRIES_COLLECTION, id);
     await deleteDoc(docRef);
@@ -1089,6 +1308,23 @@ export function subscribePreventivePlans(
   onUpdate: (plans: PreventivePlan[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
+  if (isSupabaseConfigured()) {
+    return subscribeSupabaseCollection<PreventivePlan>(
+      PREVENTIVE_PLANS_COLLECTION,
+      (remoteItems) => {
+        const planMap = new Map<string, PreventivePlan>();
+        INITIAL_PREVENTIVE_PLANS.forEach((p) => planMap.set(p.id, p));
+        loadPreventivePlans().forEach((p) => planMap.set(p.id, p));
+        remoteItems.forEach((p) => planMap.set(p.id, p));
+        const finalPlans = Array.from(planMap.values());
+        savePreventivePlans(finalPlans);
+        onUpdate(finalPlans);
+      },
+      INITIAL_PREVENTIVE_PLANS,
+      onError
+    );
+  }
+
   const q = query(collection(db, PREVENTIVE_PLANS_COLLECTION));
 
   return onSnapshot(
@@ -1123,9 +1359,14 @@ export function subscribePreventivePlans(
 }
 
 /**
- * Saves or updates a preventive plan in Firestore.
+ * Saves or updates a preventive plan in Firestore or Supabase.
  */
 export async function savePreventivePlanToFirestore(plan: PreventivePlan): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await upsertRecordToSupabase(PREVENTIVE_PLANS_COLLECTION, plan.id, plan);
+    return;
+  }
+
   try {
     const docRef = doc(db, PREVENTIVE_PLANS_COLLECTION, plan.id);
     const sanitized: Record<string, any> = {};
@@ -1140,9 +1381,14 @@ export async function savePreventivePlanToFirestore(plan: PreventivePlan): Promi
 }
 
 /**
- * Deletes a preventive plan from Firestore.
+ * Deletes a preventive plan from Firestore or Supabase.
  */
 export async function deletePreventivePlanFromFirestore(id: string): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await deleteRecordFromSupabase(PREVENTIVE_PLANS_COLLECTION, id);
+    return;
+  }
+
   try {
     const docRef = doc(db, PREVENTIVE_PLANS_COLLECTION, id);
     await deleteDoc(docRef);
@@ -1159,6 +1405,26 @@ export function subscribePreventiveRecords(
   onUpdate: (records: PreventiveRecord[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
+  if (isSupabaseConfigured()) {
+    return subscribeSupabaseCollection<PreventiveRecord>(
+      PREVENTIVE_RECORDS_COLLECTION,
+      (remoteItems) => {
+        const recMap = new Map<string, PreventiveRecord>();
+        INITIAL_PREVENTIVE_RECORDS.forEach((r) => recMap.set(r.id, r));
+        loadPreventiveRecords().forEach((r) => recMap.set(r.id, r));
+        remoteItems.forEach((r) => recMap.set(r.id, r));
+
+        const finalRecords = Array.from(recMap.values()).sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+        savePreventiveRecords(finalRecords);
+        onUpdate(finalRecords);
+      },
+      INITIAL_PREVENTIVE_RECORDS,
+      onError
+    );
+  }
+
   const q = query(collection(db, PREVENTIVE_RECORDS_COLLECTION), orderBy('date', 'desc'));
 
   return onSnapshot(
@@ -1195,9 +1461,14 @@ export function subscribePreventiveRecords(
 }
 
 /**
- * Saves a new preventive record to Firestore.
+ * Saves a new preventive record to Firestore or Supabase.
  */
 export async function savePreventiveRecordToFirestore(record: PreventiveRecord): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await upsertRecordToSupabase(PREVENTIVE_RECORDS_COLLECTION, record.id, record);
+    return;
+  }
+
   try {
     const docRef = doc(db, PREVENTIVE_RECORDS_COLLECTION, record.id);
     const sanitized: Record<string, any> = {};
@@ -1222,9 +1493,14 @@ export async function savePreventiveRecordToFirestore(record: PreventiveRecord):
 }
 
 /**
- * Deletes a preventive record from Firestore.
+ * Deletes a preventive record from Firestore or Supabase.
  */
 export async function deletePreventiveRecordFromFirestore(id: string): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await deleteRecordFromSupabase(PREVENTIVE_RECORDS_COLLECTION, id);
+    return;
+  }
+
   try {
     const docRef = doc(db, PREVENTIVE_RECORDS_COLLECTION, id);
     await deleteDoc(docRef);
@@ -1245,6 +1521,27 @@ export function subscribeMeasurementDeductions(
   callback: (deductions: MeasurementDeduction[]) => void,
   onError?: (err: Error) => void
 ): Unsubscribe {
+  if (isSupabaseConfigured()) {
+    return subscribeSupabaseCollection<MeasurementDeduction>(
+      MEASUREMENT_DEDUCTIONS_COLLECTION,
+      (remoteItems) => {
+        const deductionMap = new Map<string, MeasurementDeduction>();
+        loadMeasurementDeductions().forEach((d) => deductionMap.set(d.id, d));
+        remoteItems.forEach((d) => {
+          if (d.prefix !== 'MC005' && d.prefix !== 'CAF51' && d.prefix !== 'CBA73' && d.prefix !== 'ESC02') {
+            deductionMap.set(d.id, d);
+          }
+        });
+        const deductions = Array.from(deductionMap.values());
+        deductions.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+        saveMeasurementDeductions(deductions);
+        callback(deductions);
+      },
+      OFFICIAL_MEASUREMENT_DEDUCTIONS,
+      onError
+    );
+  }
+
   const q = query(collection(db, MEASUREMENT_DEDUCTIONS_COLLECTION));
   return onSnapshot(
     q,
@@ -1284,9 +1581,14 @@ export function subscribeMeasurementDeductions(
 }
 
 /**
- * Saves or updates a measurement deduction record in Firestore.
+ * Saves or updates a measurement deduction record in Firestore or Supabase.
  */
 export async function saveMeasurementDeductionToFirestore(deduction: MeasurementDeduction): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await upsertRecordToSupabase(MEASUREMENT_DEDUCTIONS_COLLECTION, deduction.id, deduction);
+    return;
+  }
+
   try {
     const docRef = doc(db, MEASUREMENT_DEDUCTIONS_COLLECTION, deduction.id);
     const sanitized: Record<string, any> = {};
@@ -1303,9 +1605,14 @@ export async function saveMeasurementDeductionToFirestore(deduction: Measurement
 }
 
 /**
- * Deletes a measurement deduction record from Firestore.
+ * Deletes a measurement deduction record from Firestore or Supabase.
  */
 export async function deleteMeasurementDeductionFromFirestore(id: string): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await deleteRecordFromSupabase(MEASUREMENT_DEDUCTIONS_COLLECTION, id);
+    return;
+  }
+
   try {
     const docRef = doc(db, MEASUREMENT_DEDUCTIONS_COLLECTION, id);
     await deleteDoc(docRef);
@@ -1326,6 +1633,63 @@ export function subscribeCorrectiveMaintenances(
   callback: (records: CorrectiveMaintenance[]) => void,
   onError?: (err: Error) => void
 ): Unsubscribe {
+  if (isSupabaseConfigured()) {
+    return subscribeSupabaseCollection<CorrectiveMaintenance>(
+      CORRECTIVE_MAINTENANCES_COLLECTION,
+      async (remoteItems) => {
+        const recordsMap = new Map<string, CorrectiveMaintenance>();
+        INITIAL_CORRECTIVE_MAINTENANCES.forEach((r) => recordsMap.set(r.id, r));
+        loadCorrectiveMaintenances().forEach((r) => recordsMap.set(r.id, r));
+
+        let cachedPhotosMap = new Map<string, string>();
+        try {
+          const idbPhotos = await loadAllCorrectivePhotosFromIndexedDB();
+          idbPhotos.forEach((cp) => {
+            if (cp.id && cp.dataUrl) {
+              cachedPhotosMap.set(cp.id, cp.dataUrl);
+            }
+          });
+        } catch {}
+
+        remoteItems.forEach((remote) => {
+          const local = recordsMap.get(remote.id);
+          let photos = Array.isArray(remote.photos) ? [...remote.photos] : (local?.photos || []);
+          photos = photos.map((p) => {
+            if (!p.dataUrl) {
+              const fromIdb = cachedPhotosMap.get(p.id);
+              if (fromIdb) return { ...p, dataUrl: fromIdb };
+              const fromLocal = local?.photos?.find((lp) => lp.id === p.id || lp.name === p.name);
+              if (fromLocal?.dataUrl) return { ...p, dataUrl: fromLocal.dataUrl };
+            }
+            return p;
+          });
+
+          photos.forEach((p) => {
+            if (p && p.id && p.dataUrl) {
+              cachedPhotosMap.set(p.id, p.dataUrl);
+              saveCorrectivePhotoToIndexedDB(p).catch(() => {});
+            }
+          });
+
+          recordsMap.set(remote.id, {
+            ...(local || {}),
+            ...remote,
+            photos,
+            id: remote.id,
+          });
+        });
+
+        const records = Array.from(recordsMap.values()).sort(
+          (a, b) => new Date(b.openDate).getTime() - new Date(a.openDate).getTime()
+        );
+        saveCorrectiveMaintenances(records);
+        callback(records);
+      },
+      INITIAL_CORRECTIVE_MAINTENANCES,
+      onError
+    );
+  }
+
   const q = query(collection(db, CORRECTIVE_MAINTENANCES_COLLECTION));
   return onSnapshot(
     q,
@@ -1402,17 +1766,22 @@ export function subscribeCorrectiveMaintenances(
 }
 
 /**
- * Saves or updates a corrective maintenance record in Firestore.
+ * Saves or updates a corrective maintenance record in Firestore or Supabase.
  */
 export async function saveCorrectiveMaintenanceToFirestore(record: CorrectiveMaintenance): Promise<void> {
-  try {
-    // 1. Always persist photos into local IndexedDB
-    if (record.photos && record.photos.length > 0) {
-      await saveMultipleCorrectivePhotosToIndexedDB(record.photos).catch((err) => {
-        console.warn('IndexedDB photo cache warning:', err);
-      });
-    }
+  // 1. Always persist photos into local IndexedDB
+  if (record.photos && record.photos.length > 0) {
+    await saveMultipleCorrectivePhotosToIndexedDB(record.photos).catch((err) => {
+      console.warn('IndexedDB photo cache warning:', err);
+    });
+  }
 
+  if (isSupabaseConfigured()) {
+    await upsertRecordToSupabase(CORRECTIVE_MAINTENANCES_COLLECTION, record.id, record);
+    return;
+  }
+
+  try {
     const docRef = doc(db, CORRECTIVE_MAINTENANCES_COLLECTION, record.id);
     const sanitized: Record<string, any> = {};
 
@@ -1452,9 +1821,14 @@ export async function saveCorrectiveMaintenanceToFirestore(record: CorrectiveMai
 }
 
 /**
- * Deletes a corrective maintenance record from Firestore.
+ * Deletes a corrective maintenance record from Firestore or Supabase.
  */
 export async function deleteCorrectiveMaintenanceFromFirestore(id: string): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await deleteRecordFromSupabase(CORRECTIVE_MAINTENANCES_COLLECTION, id);
+    return;
+  }
+
   try {
     const docRef = doc(db, CORRECTIVE_MAINTENANCES_COLLECTION, id);
     await deleteDoc(docRef);
@@ -1465,12 +1839,30 @@ export async function deleteCorrectiveMaintenanceFromFirestore(id: string): Prom
 }
 
 /**
- * Subscribes to real-time updates for app users.
+ * Subscribes to real-time updates for app users in Supabase or Firestore.
  */
 export function subscribeAppUsers(
   callback: (users: AppUser[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
+  if (isSupabaseConfigured()) {
+    return subscribeSupabaseCollection<AppUser>(
+      APP_USERS_COLLECTION,
+      (remoteUsers) => {
+        const userMap = new Map<string, AppUser>();
+        userMap.set(INITIAL_USERS[0].id, INITIAL_USERS[0]);
+        loadAppUsers().forEach((u) => userMap.set(u.id, u));
+        remoteUsers.forEach((u) => userMap.set(u.id, u));
+
+        const finalUsers = Array.from(userMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+        saveAppUsers(finalUsers);
+        callback(finalUsers);
+      },
+      INITIAL_USERS,
+      onError
+    );
+  }
+
   const q = query(collection(db, APP_USERS_COLLECTION), orderBy('name', 'asc'));
 
   return onSnapshot(
@@ -1509,9 +1901,14 @@ export function subscribeAppUsers(
 }
 
 /**
- * Saves or updates an app user in Firestore.
+ * Saves or updates an app user in Firestore or Supabase.
  */
 export async function saveUserToFirestore(user: AppUser): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await upsertRecordToSupabase(APP_USERS_COLLECTION, user.id, user);
+    return;
+  }
+
   try {
     const docRef = doc(db, APP_USERS_COLLECTION, user.id);
     const sanitized: Record<string, any> = {};
@@ -1526,9 +1923,14 @@ export async function saveUserToFirestore(user: AppUser): Promise<void> {
 }
 
 /**
- * Deletes an app user from Firestore.
+ * Deletes an app user from Firestore or Supabase.
  */
 export async function deleteUserFromFirestore(id: string): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await deleteRecordFromSupabase(APP_USERS_COLLECTION, id);
+    return;
+  }
+
   try {
     const docRef = doc(db, APP_USERS_COLLECTION, id);
     await deleteDoc(docRef);
@@ -1539,12 +1941,43 @@ export async function deleteUserFromFirestore(id: string): Promise<void> {
 }
 
 /**
- * Subscribes to real-time updates for app projects (obras).
+ * Subscribes to real-time updates for app projects (obras) in Supabase or Firestore.
  */
 export function subscribeAppProjects(
   callback: (projects: AppProject[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
+  if (isSupabaseConfigured()) {
+    return subscribeSupabaseCollection<AppProject>(
+      APP_PROJECTS_COLLECTION,
+      (remoteProjects) => {
+        const projMap = new Map<string, AppProject>();
+        projMap.set(UNIFIED_WORK_CODE, OFFICIAL_UNIFIED_PROJECT);
+        projMap.set(CLEAN_WORK_062_PA, OFFICIAL_062_PA_PROJECT);
+
+        loadAppProjects().forEach((p) => {
+          const norm = normalizeProjectCode(p.code);
+          if (norm && norm !== UNIFIED_WORK_CODE && norm !== CLEAN_WORK_062_PA) {
+            projMap.set(norm, { ...p, code: norm });
+          }
+        });
+
+        remoteProjects.forEach((p) => {
+          const norm = normalizeProjectCode(p.code);
+          if (norm && norm !== UNIFIED_WORK_CODE && norm !== CLEAN_WORK_062_PA) {
+            projMap.set(norm, { ...p, code: norm });
+          }
+        });
+
+        const finalProjects = Array.from(projMap.values()).sort((a, b) => a.code.localeCompare(b.code));
+        saveAppProjects(finalProjects);
+        callback(finalProjects);
+      },
+      INITIAL_PROJECTS,
+      onError
+    );
+  }
+
   const q = query(collection(db, APP_PROJECTS_COLLECTION), orderBy('code', 'asc'));
 
   return onSnapshot(
@@ -1595,9 +2028,14 @@ export function subscribeAppProjects(
 }
 
 /**
- * Saves or updates an app project (obra) in Firestore.
+ * Saves or updates an app project (obra) in Firestore or Supabase.
  */
 export async function saveProjectToFirestore(project: AppProject): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await upsertRecordToSupabase(APP_PROJECTS_COLLECTION, project.id, project);
+    return;
+  }
+
   try {
     const docRef = doc(db, APP_PROJECTS_COLLECTION, project.id);
     const sanitized: Record<string, any> = {};
@@ -1612,9 +2050,14 @@ export async function saveProjectToFirestore(project: AppProject): Promise<void>
 }
 
 /**
- * Deletes an app project (obra) from Firestore.
+ * Deletes an app project (obra) from Firestore or Supabase.
  */
 export async function deleteProjectFromFirestore(id: string): Promise<void> {
+  if (isSupabaseConfigured()) {
+    await deleteRecordFromSupabase(APP_PROJECTS_COLLECTION, id);
+    return;
+  }
+
   try {
     const docRef = doc(db, APP_PROJECTS_COLLECTION, id);
     await deleteDoc(docRef);
@@ -1624,4 +2067,10 @@ export async function deleteProjectFromFirestore(id: string): Promise<void> {
   }
 }
 
-export { testFirestoreConnection };
+export async function testFirestoreConnection(): Promise<boolean> {
+  if (isSupabaseConfigured()) {
+    const res = await testSupabaseConnectionReal();
+    return res.success;
+  }
+  return rawTestFirestore();
+}

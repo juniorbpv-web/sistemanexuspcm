@@ -44,8 +44,9 @@ interface NavbarProps {
   onSelectOverdueEquipment?: (equipmentId: string) => void;
   deductionCount?: number;
   correctiveCount?: number;
-  onExportCSV: () => void;
   cloudStatus?: 'connected' | 'syncing' | 'offline';
+  cloudProvider?: 'supabase' | 'firestore' | 'local';
+  onOpenCloudModal?: () => void;
   currentUser?: AuthUser | null;
   appUser?: AppUser | null;
   selectedProject?: string;
@@ -77,8 +78,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectOverdueEquipment,
   deductionCount,
   correctiveCount,
-  onExportCSV,
   cloudStatus = 'connected',
+  cloudProvider = 'local',
+  onOpenCloudModal,
   currentUser,
   appUser,
   selectedProject,
@@ -202,22 +204,24 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
 
-            {/* Database Status Indicator */}
-            <div
-              id="firestore-status-badge"
-              className={`flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-mono font-bold border transition-colors ${
+            {/* Database Status Indicator / Botão de Sincronização Supabase */}
+            <button
+              id="cloud-status-badge"
+              type="button"
+              onClick={onOpenCloudModal}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold border transition-all cursor-pointer hover:shadow-xs active:scale-95 ${
                 cloudStatus === 'connected'
-                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/25'
                   : cloudStatus === 'syncing'
-                  ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 animate-pulse'
-                  : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500 border-neutral-300 dark:border-neutral-700'
+                  ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/40 animate-pulse'
+                  : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-700'
               }`}
               title={
-                cloudStatus === 'connected'
-                  ? 'Banco de dados Firestore conectado e sincronizado em tempo real'
-                  : cloudStatus === 'syncing'
-                  ? 'Sincronizando alterações com o banco de dados Firestore...'
-                  : 'Trabalhando em modo local/offline com persistência segura'
+                cloudProvider === 'supabase'
+                  ? cloudStatus === 'connected'
+                    ? 'Banco de dados Supabase conectado e sincronizado em tempo real entre computadores. Clique para gerenciar.'
+                    : 'Sincronizando com Supabase... Clique para detalhes.'
+                  : 'Modo local ou desconectado. Clique para conectar ao Supabase e compartilhar dados entre computadores.'
               }
             >
               <span
@@ -229,8 +233,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                     : 'bg-neutral-400'
                 }`}
               />
-              <span className="font-semibold">{cloudStatus === 'connected' ? 'Firestore Ativo' : cloudStatus === 'syncing' ? 'Sincronizando...' : 'Offline'}</span>
-            </div>
+              <span className="font-semibold">
+                {cloudProvider === 'supabase'
+                  ? cloudStatus === 'connected'
+                    ? 'Supabase Ativo'
+                    : cloudStatus === 'syncing'
+                    ? 'Sincronizando...'
+                    : 'Supabase Offline'
+                  : cloudStatus === 'connected'
+                  ? 'Nuvem Ativa'
+                  : 'Conectar Supabase'}
+              </span>
+            </button>
 
             {/* Botão Integração Gmail (Exclusivo Perfil Admin) */}
             {effectiveRole === 'admin' && onOpenGmailIntegration && (

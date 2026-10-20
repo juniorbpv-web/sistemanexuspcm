@@ -417,19 +417,19 @@ export function saveFuelDispenses(data: FuelDispense[], allowEmpty = false): voi
 export function loadFuelEntries(): FuelEntry[] {
   try {
     const raw = localStorage.getItem(FUEL_ENTRIES_KEY);
-    const sync28Done = localStorage.getItem('makmo_fuel_entries_sync_v28') === 'true';
+    const sync30Done = localStorage.getItem('makmo_fuel_entries_sync_v30') === 'true';
 
     if (!raw) {
       localStorage.setItem(FUEL_ENTRIES_KEY, JSON.stringify(INITIAL_FUEL_ENTRIES));
       localStorage.setItem(FUEL_SYNC_KEY, 'true');
-      localStorage.setItem('makmo_fuel_entries_sync_v28', 'true');
+      localStorage.setItem('makmo_fuel_entries_sync_v30', 'true');
       return INITIAL_FUEL_ENTRIES;
     }
     let parsed: FuelEntry[] = Array.isArray(JSON.parse(raw)) ? JSON.parse(raw) : [];
 
     const legacyPlaceholderIds = ['entry-rtw-001', 'entry-dza-001', 'entry-spf-001'];
 
-    if (!sync28Done || parsed.length < INITIAL_FUEL_ENTRIES.length) {
+    if (!sync30Done || parsed.length < INITIAL_FUEL_ENTRIES.length) {
       const entryMap = new Map<string, FuelEntry>();
       INITIAL_FUEL_ENTRIES.forEach((e) => entryMap.set(e.id, e));
       parsed.forEach((e) => {
@@ -443,7 +443,7 @@ export function loadFuelEntries(): FuelEntry[] {
       }));
       localStorage.setItem(FUEL_ENTRIES_KEY, JSON.stringify(merged));
       localStorage.setItem(FUEL_SYNC_KEY, 'true');
-      localStorage.setItem('makmo_fuel_entries_sync_v28', 'true');
+      localStorage.setItem('makmo_fuel_entries_sync_v30', 'true');
       return merged;
     }
 

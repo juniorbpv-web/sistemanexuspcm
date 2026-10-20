@@ -4,10 +4,12 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
   {
     "id": "entry-001",
     "date": "2026-09-02",
-    "liters": 776,
+    "liters": 776.0,
     "supplier": "Distribuidora Regional",
     "invoiceNumber": "1",
     "destination": "Comboio SPF2C66",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "Kelson - Saldo Inícial",
     "notes": "Carga efetuada no Comboio SFC2C66",
     "createdAt": "2026-09-02T08:00:00.001Z"
@@ -15,10 +17,12 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
   {
     "id": "entry-002",
     "date": "2026-09-02",
-    "liters": 4409,
+    "liters": 4409.0,
     "supplier": "Distribuidora Regional",
     "invoiceNumber": "54314",
     "destination": "Comboio SPF2C66",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "Kelson",
     "notes": "Carga efetuada no Comboio SFC2C66",
     "createdAt": "2026-09-02T08:00:01.002Z"
@@ -26,12 +30,14 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
   {
     "id": "entry-003",
     "date": "2026-09-02",
-    "liters": 2881,
+    "liters": 2881.0,
     "totalValue": 30652.76,
     "unitPrice": 10.64,
     "supplier": "Distribuidora de Combustível",
     "invoiceNumber": "33739",
     "destination": "Comboio RTW1C01",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "Bruno",
     "notes": "",
     "createdAt": "2026-09-02T08:00:02.003Z"
@@ -39,12 +45,14 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
   {
     "id": "entry-004",
     "date": "2026-09-03",
-    "liters": 3825,
+    "liters": 3825.0,
     "totalValue": 27884.25,
     "unitPrice": 7.29,
     "supplier": "Distribuidora de Combustível",
     "invoiceNumber": "23055",
     "destination": "Comboio RTW1C01",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "Bruno",
     "notes": "",
     "createdAt": "2026-09-03T08:00:00.004Z"
@@ -58,6 +66,8 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
     "supplier": "Distribuidora de Combustível",
     "invoiceNumber": "33985",
     "destination": "Comboio DZA7G30",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "Rafael",
     "notes": "",
     "createdAt": "2026-09-05T08:00:00.005Z"
@@ -65,12 +75,14 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
   {
     "id": "entry-006",
     "date": "2026-09-09",
-    "liters": 4841,
+    "liters": 4841.0,
     "totalValue": 33451.31,
     "unitPrice": 6.91,
     "supplier": "Distribuidora de Combustível",
     "invoiceNumber": "34229",
     "destination": "Comboio DZA7G30",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "Rafael",
     "notes": "",
     "createdAt": "2026-09-09T08:00:00.006Z"
@@ -78,12 +90,14 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
   {
     "id": "entry-007",
     "date": "2026-09-09",
-    "liters": 4400,
-    "totalValue": 34056,
+    "liters": 4400.0,
+    "totalValue": 34056.0,
     "unitPrice": 7.74,
     "supplier": "Distribuidora Regional",
     "invoiceNumber": "146979",
     "destination": "Comboio RTW1C01",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "Bruno",
     "notes": "Carga efetuada no Comboio RTW1C01",
     "createdAt": "2026-09-09T08:00:01.007Z"
@@ -91,12 +105,14 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
   {
     "id": "entry-008",
     "date": "2026-09-11",
-    "liters": 4158,
+    "liters": 4158.0,
     "totalValue": 28232.82,
     "unitPrice": 6.79,
     "supplier": "Grupo trevão",
     "invoiceNumber": "22812",
     "destination": "Comboio DZA7G30",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "Rafael Joel",
     "notes": "diesel s10",
     "createdAt": "2026-09-11T08:00:00.008Z"
@@ -104,12 +120,14 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
   {
     "id": "entry-009",
     "date": "2026-09-12",
-    "liters": 5000,
-    "totalValue": 33700,
+    "liters": 5000.0,
+    "totalValue": 33700.0,
     "unitPrice": 6.74,
     "supplier": "Distribuidora Regional",
     "invoiceNumber": "886782",
     "destination": "Comboio SPF2C66",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "Operador Responsável",
     "notes": "Carga efetuada no Comboio SPF2C66",
     "createdAt": "2026-09-12T08:00:00.009Z"
@@ -117,12 +135,14 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
   {
     "id": "entry-010",
     "date": "2026-09-14",
-    "liters": 3900,
-    "totalValue": 27066,
+    "liters": 3900.0,
+    "totalValue": 27066.0,
     "unitPrice": 6.94,
     "supplier": "GRUPO TREVÃO",
     "invoiceNumber": "22874",
     "destination": "Comboio DZA7G30",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "RAFAEL",
     "notes": "DIESEL S10",
     "createdAt": "2026-09-14T08:00:00.010Z"
@@ -130,12 +150,14 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
   {
     "id": "entry-011",
     "date": "2026-09-14",
-    "liters": 4479,
+    "liters": 4479.0,
     "totalValue": 35025.78,
     "unitPrice": 7.82,
     "supplier": "ERALDO E D GUIMARAES LTDA",
     "invoiceNumber": "39792",
     "destination": "Comboio RTW1C01",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "BRUNNO",
     "notes": "",
     "createdAt": "2026-09-14T08:00:01.011Z"
@@ -143,12 +165,14 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
   {
     "id": "entry-012",
     "date": "2026-09-17",
-    "liters": 4779,
+    "liters": 4779.0,
     "totalValue": 35041.54,
     "unitPrice": 7.33,
     "supplier": "GRUPO TREVÃO",
     "invoiceNumber": "22955",
     "destination": "Comboio DZA7G30",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "RAFAEL",
     "notes": "",
     "createdAt": "2026-09-17T08:00:00.012Z"
@@ -156,12 +180,14 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
   {
     "id": "entry-013",
     "date": "2026-09-17",
-    "liters": 4396,
+    "liters": 4396.0,
     "totalValue": 35036.12,
     "unitPrice": 7.97,
     "supplier": "ERALDO GUIMARES LTDA",
     "invoiceNumber": "40005",
     "destination": "Comboio RTW1C01",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "Bruno",
     "notes": "",
     "createdAt": "2026-09-17T08:00:01.013Z"
@@ -169,12 +195,14 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
   {
     "id": "entry-014",
     "date": "2026-09-19",
-    "liters": 3946,
+    "liters": 3946.0,
     "totalValue": 26793.34,
     "unitPrice": 6.79,
     "supplier": "Posto Trevão",
     "invoiceNumber": "23011",
     "destination": "Comboio DZA7G30",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "Rafael",
     "notes": "",
     "createdAt": "2026-09-19T08:00:00.014Z"
@@ -182,12 +210,14 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
   {
     "id": "entry-015",
     "date": "2026-09-21",
-    "liters": 4001,
+    "liters": 4001.0,
     "totalValue": 31887.57,
     "unitPrice": 7.97,
     "supplier": "Eraldo Guimares LTDA",
     "invoiceNumber": "40192",
     "destination": "Comboio RTW1C01",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "Bruno",
     "notes": "",
     "createdAt": "2026-09-21T08:00:00.015Z"
@@ -201,6 +231,8 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
     "supplier": "Distribuidora Regional",
     "invoiceNumber": "23130-23131",
     "destination": "Comboio DZA7G30",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "Rafael",
     "notes": "Carga efetuada no Comboio DZA7G30",
     "createdAt": "2026-09-23T08:00:00.016Z"
@@ -208,12 +240,14 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
   {
     "id": "entry-017",
     "date": "2026-09-23",
-    "liters": 5000,
-    "totalValue": 38600,
+    "liters": 5000.0,
+    "totalValue": 38600.0,
     "unitPrice": 7.72,
     "supplier": "Distribuidora Regional",
     "invoiceNumber": "4097",
     "destination": "Comboio SPF2C66",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "Operador Responsável",
     "notes": "Carga efetuada no Comboio SPF2C66 PELA OBRA 062",
     "createdAt": "2026-09-23T08:00:01.017Z"
@@ -221,12 +255,14 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
   {
     "id": "entry-018",
     "date": "2026-09-24",
-    "liters": 4575,
-    "totalValue": 35319,
+    "liters": 4575.0,
+    "totalValue": 35319.0,
     "unitPrice": 7.72,
     "supplier": "Posto Trevão",
     "invoiceNumber": "4187",
     "destination": "Comboio SPF2C66",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "Kelson Farias",
     "notes": "Abastecimento realizado pela Obra:062",
     "createdAt": "2026-09-24T08:00:00.018Z"
@@ -234,12 +270,14 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
   {
     "id": "entry-019",
     "date": "2026-09-25",
-    "liters": 3403,
+    "liters": 3403.0,
     "totalValue": 23446.67,
     "unitPrice": 6.89,
     "supplier": "Grupo Trevão",
     "invoiceNumber": "23201",
     "destination": "Comboio DZA7G30",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "Rafael",
     "notes": "",
     "createdAt": "2026-09-25T08:00:00.019Z"
@@ -247,12 +285,14 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
   {
     "id": "entry-020",
     "date": "2026-09-25",
-    "liters": 4233,
+    "liters": 4233.0,
     "totalValue": 33737.01,
     "unitPrice": 7.97,
     "supplier": "Posto Caiuri",
     "invoiceNumber": "40532",
     "destination": "Comboio RTW1C01",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "Bruno",
     "notes": "",
     "createdAt": "2026-09-25T08:00:01.020Z"
@@ -260,12 +300,14 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
   {
     "id": "entry-021",
     "date": "2026-09-28",
-    "liters": 4901.4,
+    "liters": 4901.7,
     "totalValue": 36956.85,
     "unitPrice": 7.54,
     "supplier": "Posto Piran Comercio",
     "invoiceNumber": "887",
     "destination": "Comboio SPF2C66",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "Kelson",
     "notes": "",
     "createdAt": "2026-09-28T08:00:00.021Z"
@@ -273,16 +315,33 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
   {
     "id": "entry-022",
     "date": "2026-09-28",
-    "liters": 91,
+    "liters": 151.0,
     "supplier": "Distribuidora de Combustível",
-    "invoiceNumber": "-",
+    "invoiceNumber": "S/N",
     "destination": "Comboio SPF2C66",
+    "location": "063/064",
+    "obra_id": "063/064",
     "responsible": "Kelson",
     "notes": "CORREÇÃO DE DIESEL COMBOIO ESTAVA NEGATIVO DEVIDO OBRA 062",
     "createdAt": "2026-09-28T08:00:01.022Z"
   },
   {
     "id": "entry-023",
+    "date": "2026-10-01",
+    "liters": 4717.34,
+    "totalValue": 35568.8,
+    "unitPrice": 7.54,
+    "supplier": "Posto Piran",
+    "invoiceNumber": "897/898/899/900",
+    "destination": "Comboio SPF2C66",
+    "location": "063/064",
+    "obra_id": "063/064",
+    "responsible": "Kelson",
+    "notes": "Carga efetuada no Comboio SPF2C66",
+    "createdAt": "2026-10-01T08:00:00.023Z"
+  },
+  {
+    "id": "entry-024",
     "date": "2026-10-06",
     "liters": 547.4,
     "supplier": "Distribuidora Regional",
@@ -292,13 +351,13 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
     "obra_id": "063/064",
     "responsible": "Correção de Tanque - Troca de Motorista",
     "notes": "Correção",
-    "createdAt": "2026-10-06T08:00:00.023Z"
+    "createdAt": "2026-10-06T08:00:00.024Z"
   },
   {
-    "id": "entry-024",
+    "id": "entry-025",
     "date": "2026-10-06",
     "liters": 4995.0,
-    "totalValue": 37662.30,
+    "totalValue": 37662.3,
     "unitPrice": 7.54,
     "supplier": "Posto Piran",
     "invoiceNumber": "907",
@@ -307,10 +366,10 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
     "obra_id": "063/064",
     "responsible": "Luis",
     "notes": "Carga efetuada no Comboio SPF2C66",
-    "createdAt": "2026-10-06T08:00:01.024Z"
+    "createdAt": "2026-10-06T08:00:01.025Z"
   },
   {
-    "id": "entry-025",
+    "id": "entry-026",
     "date": "2026-10-11",
     "liters": 2968.86,
     "totalValue": 22385.27,
@@ -322,10 +381,10 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
     "obra_id": "063/064",
     "responsible": "Luis",
     "notes": "Carga efetuada no Comboio SPF2C66",
-    "createdAt": "2026-10-11T08:00:00.025Z"
+    "createdAt": "2026-10-11T08:00:00.026Z"
   },
   {
-    "id": "entry-026",
+    "id": "entry-027",
     "date": "2026-10-13",
     "liters": 2398.0,
     "totalValue": 18080.92,
@@ -337,10 +396,10 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
     "obra_id": "063/064",
     "responsible": "Operador Responsável",
     "notes": "Carga efetuada no Comboio SPF2C66",
-    "createdAt": "2026-10-13T08:00:00.026Z"
+    "createdAt": "2026-10-13T08:00:00.027Z"
   },
   {
-    "id": "entry-027",
+    "id": "entry-028",
     "date": "2026-10-14",
     "liters": 1999.99,
     "totalValue": 15079.99,
@@ -352,10 +411,10 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
     "obra_id": "063/064",
     "responsible": "Kelson",
     "notes": "Carga efetuada no Comboio SPF2C66",
-    "createdAt": "2026-10-14T08:00:00.027Z"
+    "createdAt": "2026-10-14T08:00:00.028Z"
   },
   {
-    "id": "entry-028",
+    "id": "entry-029",
     "date": "2026-10-15",
     "liters": 3000.5,
     "totalValue": 22616.01,
@@ -367,6 +426,21 @@ export const OFFICIAL_FUEL_ENTRIES: FuelEntry[] = [
     "obra_id": "063/064",
     "responsible": "Kelson",
     "notes": "Carga efetuada no Comboio SPF2C66",
-    "createdAt": "2026-10-15T08:00:00.028Z"
+    "createdAt": "2026-10-15T08:00:00.029Z"
+  },
+  {
+    "id": "entry-030",
+    "date": "2026-10-16",
+    "liters": 5000.0,
+    "totalValue": 37700.0,
+    "unitPrice": 7.54,
+    "supplier": "Posto Piran",
+    "invoiceNumber": "943",
+    "destination": "Comboio SPF2C66",
+    "location": "063/064",
+    "obra_id": "063/064",
+    "responsible": "Operador Responsável",
+    "notes": "Carga efetuada no Comboio SPF2C66",
+    "createdAt": "2026-10-16T08:00:00.030Z"
   }
 ];

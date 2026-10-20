@@ -138,6 +138,12 @@ import { ToastContainer, ToastMessage } from './components/Toast';
 import { MakmoLogo } from './components/MakmoLogo';
 
 import { OverduePreventiveItem } from './components/OverdueNotificationBell';
+import {
+  initSupabaseRemoteConfig,
+  isSupabaseConfigured,
+  onSupabaseConfigChange,
+} from './services/supabaseService';
+import { SupabaseConnectionModal } from './components/SupabaseConnectionModal';
 
 export default function App() {
   // Authentication & Access Control state
@@ -184,7 +190,7 @@ export default function App() {
   const [isOverdueBellOpen, setIsOverdueBellOpen] = useState(false);
   const [preventiveStatusFilter, setPreventiveStatusFilter] = useState<string>('todos');
   const [preventiveTargetEquipmentId, setPreventiveTargetEquipmentId] = useState<string | undefined>(undefined);
-
+  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
 
   // Toast notifications
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -205,6 +211,28 @@ export default function App() {
     try {
       localStorage.removeItem('makmo_system_color_theme');
     } catch {}
+  }, []);
+
+  // Fetch Supabase configuration from server API if not in env/local, so all users on Hostinger share it
+  useEffect(() => {
+    initSupabaseRemoteConfig().then((configured) => {
+      if (configured) {
+        testFirestoreConnection().then((connected) => {
+          setCloudStatus(connected ? 'connected' : 'offline');
+        });
+      }
+    });
+
+    const unsub = onSupabaseConfigChange(() => {
+      testFirestoreConnection().then((connected) => {
+        setCloudStatus(connected ? 'connected' : 'offline');
+        if (connected) {
+          seedInitialDataIfEmpty();
+        }
+      });
+    });
+
+    return unsub;
   }, []);
 
   // Firebase connection and real-time subscription setup
@@ -1845,6 +1873,8 @@ export default function App() {
           correctiveCount={filteredCorrectiveMaintenances.length}
           onExportCSV={handleExportCSV}
           cloudStatus={cloudStatus}
+          cloudProvider={isSupabaseConfigured() ? 'supabase' : 'local'}
+          onOpenCloudModal={() => setIsSupabaseModalOpen(true)}
           currentUser={currentUser}
           appUser={session?.user}
           selectedProject={selectedProject}
@@ -2018,8 +2048,21 @@ export default function App() {
           onDeleteUser={handleDeleteUser}
           onSaveProject={handleSaveProject}
           onDeleteProject={handleDeleteProject}
+          onOpenSupabaseConfig={() => setIsSupabaseModalOpen(true)}
         />
       )}
+
+      {/* Supabase Cloud Connection & Sync Modal */}
+      <SupabaseConnectionModal
+        isOpen={isSupabaseModalOpen}
+        onClose={() => setIsSupabaseModalOpen(false)}
+        onConfigChanged={() => {
+          testFirestoreConnection().then((connected) => {
+            setCloudStatus(connected ? 'connected' : 'offline');
+          });
+        }}
+        addToast={addToast}
+      />
 
       {/* Gmail Integration Modal (Apenas Perfil Admin) */}
       {session && session.user.role === 'admin' && (

@@ -11,6 +11,12 @@ import {
   Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import {
+  isSupabaseConfigured,
+  upsertRecordToSupabase,
+  deleteRecordFromSupabase,
+  subscribeSupabaseCollection,
+} from './supabaseService';
 
 const DB_NAME = 'MakmoFleet_FilesDB';
 const DB_VERSION = 1;
@@ -141,6 +147,12 @@ export async function getInvoiceFileFromIndexedDB(id: string): Promise<FuelInvoi
  */
 export async function saveInvoiceFileToFirestore(file: FuelInvoiceFile): Promise<void> {
   try {
+    if (isSupabaseConfigured()) {
+      await upsertRecordToSupabase('fuel_invoice_files', file.id, file);
+      return;
+    }
+
+    if (!db) return;
     const docRef = doc(db, FIRESTORE_COLLECTION, file.id);
     const dataSize = file.dataUrl ? file.dataUrl.length : 0;
     
@@ -167,30 +179,75 @@ export async function saveInvoiceFileToFirestore(file: FuelInvoiceFile): Promise
       await setDoc(docRef, metaOnly);
     }
   } catch (err) {
-    console.warn('Erro ao sincronizar arquivo com Firestore:', err);
+    console.warn('Erro ao sincronizar arquivo com banco na nuvem:', err);
   }
 }
 
 /**
- * Deletes a fuel invoice file from Firestore.
+ * Deletes a fuel invoice file from Firestore or Supabase.
  */
 export async function deleteInvoiceFileFromFirestore(id: string): Promise<void> {
   try {
+    if (isSupabaseConfigured()) {
+      await deleteRecordFromSupabase('fuel_invoice_files', id);
+      return;
+    }
+
+    if (!db) return;
     const docRef = doc(db, FIRESTORE_COLLECTION, id);
     await deleteDoc(docRef);
   } catch (err) {
-    console.warn('Erro ao remover arquivo do Firestore:', err);
+    console.warn('Erro ao remover arquivo do banco na nuvem:', err);
   }
 }
 
 /**
- * Subscribes to real-time updates of files in Firestore.
+ * Subscribes to real-time updates of files in Supabase or Firestore.
  */
 export function subscribeInvoiceFiles(
   onUpdate: (files: FuelInvoiceFile[]) => void,
   onError?: (err: Error) => void
 ): Unsubscribe {
+  if (isSupabaseConfigured()) {
+    return subscribeSupabaseCollection<FuelInvoiceFile>(
+      'fuel_invoice_files',
+      async (remoteFiles) => {
+        // Merge with local IndexedDB (which contains the full dataUrl for large files)
+        const localFiles = await loadInvoiceFilesFromIndexedDB();
+        const localMap = new Map(localFiles.map((f) => [f.id, f]));
+
+        const mergedFiles: FuelInvoiceFile[] = remoteFiles.map((remote) => {
+          const local = localMap.get(remote.id);
+          if (local && local.dataUrl && (!remote.dataUrl || remote.dataUrl.length === 0)) {
+            return { ...remote, dataUrl: local.dataUrl };
+          }
+          if (remote.dataUrl && (!local || !local.dataUrl)) {
+            saveInvoiceFileToIndexedDB(remote).catch(() => {});
+          }
+          return remote;
+        });
+
+        // Also add any local-only files not yet in remote
+        const remoteIds = new Set(remoteFiles.map((f) => f.id));
+        for (const local of localFiles) {
+          if (!remoteIds.has(local.id)) {
+            mergedFiles.push(local);
+          }
+        }
+
+        mergedFiles.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+        onUpdate(mergedFiles);
+      },
+      [],
+      onError
+    );
+  }
+
   try {
+    if (!db) {
+      loadInvoiceFilesFromIndexedDB().then(onUpdate).catch(() => onUpdate([]));
+      return () => {};
+    }
     const q = query(collection(db, FIRESTORE_COLLECTION), orderBy('uploadedAt', 'desc'));
     return onSnapshot(
       q,
