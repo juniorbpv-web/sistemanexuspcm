@@ -6,6 +6,11 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import {
+  isSupabaseConfigured,
+  upsertRecordToSupabase,
+  fetchCollectionFromSupabase,
+} from './supabaseService';
 import ExcelJS from 'exceljs';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';

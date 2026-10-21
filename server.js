@@ -62,9 +62,9 @@ async function startServer() {
 
       console.log('[SERVER] Configuração do Supabase salva com sucesso no servidor.');
       res.json({ success: true, url: String(url).trim(), isConfigured: true });
-    } catch (err: any) {
+    } catch (err) {
       console.error('[SERVER] Falha ao salvar configuração do Supabase:', err);
-      res.status(500).json({ error: err.message || 'Falha ao salvar no servidor.' });
+      res.status(500).json({ error: (err && err.message) || 'Falha ao salvar no servidor.' });
     }
   });
 

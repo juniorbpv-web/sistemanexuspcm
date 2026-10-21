@@ -12,7 +12,7 @@ import {
   writeBatch,
   Unsubscribe,
 } from 'firebase/firestore';
-import { db, auth, testFirestoreConnection as rawTestFirestore } from '../lib/firebase';
+import { db, auth, testFirestoreConnection as rawTestFirestoreConnection } from '../lib/firebase';
 import {
   isSupabaseConfigured,
   subscribeSupabaseCollection,
@@ -20,9 +20,9 @@ import {
   deleteRecordFromSupabase,
   clearCollectionFromSupabase,
   seedSupabaseInitialData,
-  testSupabaseConnection as testSupabaseConnectionReal,
+  testSupabaseConnection,
 } from './supabaseService';
-import { OFFICIAL_MEASUREMENT_DEDUCTIONS } from '../data/officialDeductionsData';
+import { OFFICIAL_MEASUREMENT_DEDUCTIONS as OFFICIAL_DEDUCTIONS } from '../data/officialDeductionsData';
 import {
   Equipment,
   DailyLog,
@@ -570,6 +570,56 @@ export async function clearCorrectiveDataFromFirestore(): Promise<void> {
 }
 
 /**
+ * Safely merges and sanitizes equipment items from remote database (Firestore / Supabase)
+ * with INITIAL_EQUIPMENTS and local storage cache.
+ */
+function processEquipmentItems(remoteItems: Equipment[]): Equipment[] {
+  const mergedMap = new Map<string, Equipment>();
+  INITIAL_EQUIPMENTS.forEach((eq) => mergedMap.set(eq.id, eq));
+  loadEquipments().forEach((eq) => {
+    if (eq && eq.id) mergedMap.set(eq.id, eq);
+  });
+  remoteItems.forEach((eq) => {
+    const official = INITIAL_EQUIPMENTS.find(
+      (o) => o.id === eq.id || (o.plate && eq.plate && o.plate.toUpperCase() === eq.plate.toUpperCase())
+    );
+    if (official) {
+      mergedMap.set(official.id, {
+        ...official,
+        ...eq,
+        operator: eq.operator || official.operator,
+        currentHourMeter: Math.max(official.currentHourMeter || 0, eq.currentHourMeter || 0),
+        lastHourMeterDate: eq.lastHourMeterDate || official.lastHourMeterDate,
+        currentKm: Math.max(official.currentKm || 0, eq.currentKm || 0),
+        lastKmDate: eq.lastKmDate || official.lastKmDate,
+      });
+    } else {
+      mergedMap.set(eq.id, eq);
+    }
+  });
+
+  const finalItems = Array.from(mergedMap.values()).sort((a, b) =>
+    (a.code || '').localeCompare(b.code || '')
+  );
+  saveEquipments(finalItems);
+  return finalItems;
+}
+
+/**
+ * Safely merges daily logs from remote database (Firestore / Supabase)
+ * with INITIAL_LOGS and local cache.
+ */
+function processDailyLogItems(remoteItems: DailyLog[]): DailyLog[] {
+  const logsMap = new Map<string, DailyLog>();
+  INITIAL_LOGS.forEach((log) => logsMap.set(log.id, log));
+  loadDailyLogs().forEach((log) => logsMap.set(log.id, log));
+  remoteItems.forEach((log) => logsMap.set(log.id, log));
+  const sortedItems = sortDailyLogsAscending(Array.from(logsMap.values()));
+  saveDailyLogs(sortedItems);
+  return sortedItems;
+}
+
+/**
  * Subscribes to real-time updates for equipments.
  */
 export function subscribeEquipments(
@@ -579,20 +629,9 @@ export function subscribeEquipments(
   if (isSupabaseConfigured()) {
     return subscribeSupabaseCollection<Equipment>(
       EQUIPMENTS_COLLECTION,
-      (remoteItems) => {
-        const mergedMap = new Map<string, Equipment>();
-        INITIAL_EQUIPMENTS.forEach((eq) => mergedMap.set(eq.id, eq));
-        loadEquipments().forEach((eq) => {
-          if (eq && eq.id) mergedMap.set(eq.id, eq);
-        });
-        remoteItems.forEach((eq) => {
-          if (eq && eq.id) mergedMap.set(eq.id, eq);
-        });
-        const finalItems = Array.from(mergedMap.values()).sort((a, b) =>
-          (a.code || '').localeCompare(b.code || '')
-        );
-        saveEquipments(finalItems);
-        onUpdate(finalItems);
+      (items) => {
+        const processed = processEquipmentItems(items);
+        onUpdate(processed);
       },
       INITIAL_EQUIPMENTS,
       onError
@@ -604,7 +643,6 @@ export function subscribeEquipments(
   return onSnapshot(
     q,
     (snapshot) => {
-      // If snapshot is empty, do not clear out data!
       if (snapshot.empty) {
         console.warn('Firestore equipments snapshot is empty, keeping local/initial equipment data.');
         const current = loadEquipments();
@@ -617,45 +655,12 @@ export function subscribeEquipments(
         firestoreItems.push(docSnap.data() as Equipment);
       });
 
-      // Merge Firestore items with INITIAL_EQUIPMENTS so baseline equipments are never lost
-      const mergedMap = new Map<string, Equipment>();
-      INITIAL_EQUIPMENTS.forEach((eq) => mergedMap.set(eq.id, eq));
-      // Local equipment fallback
-      loadEquipments().forEach((eq) => {
-        if (eq && eq.id) mergedMap.set(eq.id, eq);
-      });
-      // Firestore live truth: user modifications always take precedence
-      firestoreItems.forEach((eq) => {
-        const official = INITIAL_EQUIPMENTS.find(
-          (o) => o.id === eq.id || (o.plate && eq.plate && o.plate.toUpperCase() === eq.plate.toUpperCase())
-        );
-        if (official) {
-          mergedMap.set(official.id, {
-            ...official,
-            ...eq,
-            operator: eq.operator || official.operator,
-            currentHourMeter: Math.max(official.currentHourMeter || 0, eq.currentHourMeter || 0),
-            lastHourMeterDate: eq.lastHourMeterDate || official.lastHourMeterDate,
-            currentKm: Math.max(official.currentKm || 0, eq.currentKm || 0),
-            lastKmDate: eq.lastKmDate || official.lastKmDate,
-          });
-        } else {
-          mergedMap.set(eq.id, eq);
-        }
-      });
-
-      const finalItems = Array.from(mergedMap.values()).sort((a, b) =>
-        (a.code || '').localeCompare(b.code || '')
-      );
-
-      // Keep localStorage in sync as cache
-      saveEquipments(finalItems);
+      const finalItems = processEquipmentItems(firestoreItems);
       onUpdate(finalItems);
     },
     (err) => {
       console.error('Error listening to equipments from Firestore:', err);
       if (onError) onError(err);
-      // Fallback to local storage on connection error
       onUpdate(loadEquipments());
     }
   );
@@ -671,14 +676,9 @@ export function subscribeDailyLogs(
   if (isSupabaseConfigured()) {
     return subscribeSupabaseCollection<DailyLog>(
       DAILY_LOGS_COLLECTION,
-      (remoteLogs) => {
-        const logsMap = new Map<string, DailyLog>();
-        INITIAL_LOGS.forEach((log) => logsMap.set(log.id, log));
-        loadDailyLogs().forEach((log) => logsMap.set(log.id, log));
-        remoteLogs.forEach((log) => logsMap.set(log.id, log));
-        const sortedItems = sortDailyLogsAscending(Array.from(logsMap.values()));
-        saveDailyLogs(sortedItems);
-        onUpdate(sortedItems);
+      (items) => {
+        const sorted = processDailyLogItems(items);
+        onUpdate(sorted);
       },
       INITIAL_LOGS,
       onError
@@ -702,23 +702,12 @@ export function subscribeDailyLogs(
         firestoreLogs.push(docSnap.data() as DailyLog);
       });
 
-      // Merge with initial official logs and local logs to guarantee no logs vanish
-      const logsMap = new Map<string, DailyLog>();
-      INITIAL_LOGS.forEach((log) => logsMap.set(log.id, log));
-      loadDailyLogs().forEach((log) => logsMap.set(log.id, log));
-      firestoreLogs.forEach((log) => logsMap.set(log.id, log));
-
-      // Sort ascending by date (oldest to newest)
-      const sortedItems = sortDailyLogsAscending(Array.from(logsMap.values()));
-
-      // Keep localStorage in sync as cache
-      saveDailyLogs(sortedItems);
+      const sortedItems = processDailyLogItems(firestoreLogs);
       onUpdate(sortedItems);
     },
     (err) => {
       console.error('Error listening to daily logs from Firestore:', err);
       if (onError) onError(err);
-      // Fallback to local storage on connection error
       onUpdate(loadDailyLogs());
     }
   );
@@ -757,7 +746,7 @@ function sanitizeEquipmentForFirestore(equipment: Equipment): any {
 }
 
 /**
- * Adds or saves an equipment to Firestore or Supabase.
+ * Adds or saves an equipment to Firestore.
  */
 export async function saveEquipmentToFirestore(equipment: Equipment): Promise<void> {
   const sanitized = sanitizeEquipmentForFirestore(equipment);
@@ -813,7 +802,7 @@ export async function deleteEquipmentFromFirestore(id: string): Promise<void> {
 }
 
 /**
- * Saves a daily log and updates the reference equipment's currentHourMeter in Firestore.
+ * Saves a daily log and updates the reference equipment's currentHourMeter in Firestore or Supabase.
  */
 export async function saveDailyLogToFirestore(
   log: DailyLog,
@@ -822,15 +811,15 @@ export async function saveDailyLogToFirestore(
   if (isSupabaseConfigured()) {
     await upsertRecordToSupabase(DAILY_LOGS_COLLECTION, log.id, log);
     if (equipmentToUpdate) {
-      const allEq = loadEquipments();
-      const eq = allEq.find((e) => e.id === equipmentToUpdate.id);
+      const currentEquipments = loadEquipments();
+      const eq = currentEquipments.find((e) => e.id === equipmentToUpdate.id);
       if (eq) {
         const updatedEq = {
           ...eq,
           currentHourMeter: equipmentToUpdate.finalHourMeter,
           updatedAt: new Date().toISOString(),
         };
-        await upsertRecordToSupabase(EQUIPMENTS_COLLECTION, equipmentToUpdate.id, updatedEq);
+        await upsertRecordToSupabase(EQUIPMENTS_COLLECTION, updatedEq.id, updatedEq);
       }
     }
     return;
@@ -878,14 +867,9 @@ export async function deleteDailyLogFromFirestore(id: string): Promise<void> {
 }
 
 /**
- * Safely synchronizes baseline defaults into Firestore or Supabase without deleting any existing data.
+ * Safely synchronizes baseline defaults into Firestore without deleting any existing data.
  */
 export async function restoreFirestoreDefaults(): Promise<void> {
-  if (isSupabaseConfigured()) {
-    await seedSupabaseInitialData(true);
-    return;
-  }
-
   try {
     // Non-destructive safe upsert: NEVER delete existing user data!
     let insertBatch = writeBatch(db);
@@ -954,6 +938,30 @@ export async function restoreFirestoreDefaults(): Promise<void> {
 }
 
 /**
+ * Safely merges and sanitizes fuel dispenses from remote database (Firestore / Supabase)
+ * with INITIAL_FUEL_DISPENSES and local cache.
+ */
+function processFuelDispenseItems(remoteItems: FuelDispense[]): FuelDispense[] {
+  const dispMap = new Map<string, FuelDispense>();
+  INITIAL_FUEL_DISPENSES.forEach((d) => dispMap.set(d.id, d));
+  loadFuelDispenses().forEach((d) => dispMap.set(d.id, d));
+  remoteItems.forEach((d) => {
+    const fixed = { ...d };
+    if ((fixed.convoyPlate as string) === 'SFC2C66') {
+      fixed.convoyPlate = 'SPF2C66';
+    }
+    dispMap.set(fixed.id, fixed);
+  });
+
+  const finalItems = Array.from(dispMap.values()).sort(
+    (a, b) => a.date.localeCompare(b.date) || a.initialMeter - b.initialMeter
+  );
+
+  saveFuelDispenses(finalItems);
+  return finalItems;
+}
+
+/**
  * Subscribes to real-time updates for fuel dispenses (saídas de diesel dos comboios).
  */
 export function subscribeFuelDispenses(
@@ -963,23 +971,9 @@ export function subscribeFuelDispenses(
   if (isSupabaseConfigured()) {
     return subscribeSupabaseCollection<FuelDispense>(
       FUEL_DISPENSES_COLLECTION,
-      (remoteItems) => {
-        const dispMap = new Map<string, FuelDispense>();
-        INITIAL_FUEL_DISPENSES.forEach((d) => dispMap.set(d.id, d));
-        loadFuelDispenses().forEach((d) => dispMap.set(d.id, d));
-        remoteItems.forEach((d) => {
-          if ((d.convoyPlate as string) === 'SFC2C66') {
-            d.convoyPlate = 'SPF2C66';
-          }
-          dispMap.set(d.id, d);
-        });
-
-        const finalItems = Array.from(dispMap.values()).sort(
-          (a, b) => a.date.localeCompare(b.date) || a.initialMeter - b.initialMeter
-        );
-
-        saveFuelDispenses(finalItems);
-        onUpdate(finalItems);
+      (items) => {
+        const processed = processFuelDispenseItems(items);
+        onUpdate(processed);
       },
       INITIAL_FUEL_DISPENSES,
       onError
@@ -1000,24 +994,10 @@ export function subscribeFuelDispenses(
 
       const firestoreDispenses: FuelDispense[] = [];
       snapshot.forEach((docSnap) => {
-        const d = docSnap.data() as FuelDispense;
-        if ((d.convoyPlate as string) === 'SFC2C66') {
-          d.convoyPlate = 'SPF2C66';
-        }
-        firestoreDispenses.push(d);
+        firestoreDispenses.push(docSnap.data() as FuelDispense);
       });
 
-      // Merge INITIAL_FUEL_DISPENSES (all 523 items) + local items + firestore items
-      const dispMap = new Map<string, FuelDispense>();
-      INITIAL_FUEL_DISPENSES.forEach((d) => dispMap.set(d.id, d));
-      loadFuelDispenses().forEach((d) => dispMap.set(d.id, d));
-      firestoreDispenses.forEach((d) => dispMap.set(d.id, d));
-
-      const finalItems = Array.from(dispMap.values()).sort(
-        (a, b) => a.date.localeCompare(b.date) || a.initialMeter - b.initialMeter
-      );
-
-      saveFuelDispenses(finalItems);
+      const finalItems = processFuelDispenseItems(firestoreDispenses);
       onUpdate(finalItems);
     },
     (err) => {
@@ -1057,6 +1037,54 @@ function prepareFuelEntryForFirestore(entry: FuelEntry, isUpdate = false): Recor
 }
 
 /**
+ * Safely merges and rehydrates fuel entries from remote database (Firestore / Supabase)
+ * with INITIAL_FUEL_ENTRIES, local cache, and invoice attachments stored in IndexedDB.
+ */
+async function processFuelEntryItems(remoteItems: FuelEntry[]): Promise<FuelEntry[]> {
+  const legacyPlaceholderIds = ['entry-rtw-001', 'entry-dza-001', 'entry-spf-001'];
+  const entriesMap = new Map<string, FuelEntry>();
+  INITIAL_FUEL_ENTRIES.forEach((e) => entriesMap.set(e.id, e));
+  loadFuelEntries().forEach((e) => {
+    if (!legacyPlaceholderIds.includes(e.id)) {
+      entriesMap.set(e.id, e);
+    }
+  });
+  remoteItems.forEach((e) => {
+    const fixed = { ...e };
+    if (fixed.destination && fixed.destination.includes('SFC2C66')) {
+      fixed.destination = fixed.destination.replace(/SFC2C66/g, 'SPF2C66');
+    }
+    if (!legacyPlaceholderIds.includes(fixed.id)) {
+      entriesMap.set(fixed.id, fixed);
+    }
+  });
+
+  const items = Array.from(entriesMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+
+  // Try to rehydrate missing attachmentUrls from IndexedDB if local copies exist
+  try {
+    const localFiles = await loadInvoiceFilesFromIndexedDB();
+    const fileMap = new Map(localFiles.map((f) => [f.id, f]));
+
+    const hydrated = items.map((entry) => {
+      if ((!entry.attachmentUrl || entry.attachmentUrl.length === 0) && entry.attachmentName) {
+        const matched = fileMap.get(`file_entry_${entry.id}`);
+        if (matched && matched.dataUrl) {
+          return { ...entry, attachmentUrl: matched.dataUrl };
+        }
+      }
+      return entry;
+    });
+
+    saveFuelEntries(hydrated);
+    return hydrated;
+  } catch {
+    saveFuelEntries(items);
+    return items;
+  }
+}
+
+/**
  * Subscribes to real-time updates for fuel entries (entradas de diesel no tanque).
  */
 export function subscribeFuelEntries(
@@ -1066,46 +1094,9 @@ export function subscribeFuelEntries(
   if (isSupabaseConfigured()) {
     return subscribeSupabaseCollection<FuelEntry>(
       FUEL_ENTRIES_COLLECTION,
-      async (remoteItems) => {
-        const legacyPlaceholderIds = ['entry-rtw-001', 'entry-dza-001', 'entry-spf-001'];
-        const entriesMap = new Map<string, FuelEntry>();
-        INITIAL_FUEL_ENTRIES.forEach((e) => entriesMap.set(e.id, e));
-        loadFuelEntries().forEach((e) => {
-          if (!legacyPlaceholderIds.includes(e.id)) {
-            entriesMap.set(e.id, e);
-          }
-        });
-        remoteItems.forEach((e) => {
-          if (!legacyPlaceholderIds.includes(e.id)) {
-            if (e.destination && e.destination.includes('SFC2C66')) {
-              e.destination = e.destination.replace(/SFC2C66/g, 'SPF2C66');
-            }
-            entriesMap.set(e.id, e);
-          }
-        });
-
-        const items = Array.from(entriesMap.values()).sort((a, b) => a.date.localeCompare(b.date));
-
-        try {
-          const localFiles = await loadInvoiceFilesFromIndexedDB();
-          const fileMap = new Map(localFiles.map((f) => [f.id, f]));
-
-          const hydrated = items.map((entry) => {
-            if ((!entry.attachmentUrl || entry.attachmentUrl.length === 0) && entry.attachmentName) {
-              const matched = fileMap.get(`file_entry_${entry.id}`);
-              if (matched && matched.dataUrl) {
-                return { ...entry, attachmentUrl: matched.dataUrl };
-              }
-            }
-            return entry;
-          });
-
-          saveFuelEntries(hydrated);
-          onUpdate(hydrated);
-        } catch {
-          saveFuelEntries(items);
-          onUpdate(items);
-        }
+      async (items) => {
+        const hydrated = await processFuelEntryItems(items);
+        onUpdate(hydrated);
       },
       INITIAL_FUEL_ENTRIES,
       onError
@@ -1126,50 +1117,11 @@ export function subscribeFuelEntries(
 
       const firestoreEntries: FuelEntry[] = [];
       snapshot.forEach((docSnap) => {
-        const e = docSnap.data() as FuelEntry;
-        if (e.destination && e.destination.includes('SFC2C66')) {
-          e.destination = e.destination.replace(/SFC2C66/g, 'SPF2C66');
-        }
-        firestoreEntries.push(e);
+        firestoreEntries.push(docSnap.data() as FuelEntry);
       });
 
-      const legacyPlaceholderIds = ['entry-rtw-001', 'entry-dza-001', 'entry-spf-001'];
-      const entriesMap = new Map<string, FuelEntry>();
-      INITIAL_FUEL_ENTRIES.forEach((e) => entriesMap.set(e.id, e));
-      loadFuelEntries().forEach((e) => {
-        if (!legacyPlaceholderIds.includes(e.id)) {
-          entriesMap.set(e.id, e);
-        }
-      });
-      firestoreEntries.forEach((e) => {
-        if (!legacyPlaceholderIds.includes(e.id)) {
-          entriesMap.set(e.id, e);
-        }
-      });
-
-      const items = Array.from(entriesMap.values()).sort((a, b) => a.date.localeCompare(b.date));
-
-      // Try to rehydrate missing attachmentUrls from IndexedDB if local copies exist
-      try {
-        const localFiles = await loadInvoiceFilesFromIndexedDB();
-        const fileMap = new Map(localFiles.map((f) => [f.id, f]));
-
-        const hydrated = items.map((entry) => {
-          if ((!entry.attachmentUrl || entry.attachmentUrl.length === 0) && entry.attachmentName) {
-            const matched = fileMap.get(`file_entry_${entry.id}`);
-            if (matched && matched.dataUrl) {
-              return { ...entry, attachmentUrl: matched.dataUrl };
-            }
-          }
-          return entry;
-        });
-
-        saveFuelEntries(hydrated);
-        onUpdate(hydrated);
-      } catch {
-        saveFuelEntries(items);
-        onUpdate(items);
-      }
+      const hydrated = await processFuelEntryItems(firestoreEntries);
+      onUpdate(hydrated);
     },
     (err) => {
       console.error('Error listening to fuel entries from Firestore:', err);
@@ -1180,7 +1132,7 @@ export function subscribeFuelEntries(
 }
 
 /**
- * Saves a fuel dispense log to Firestore or Supabase.
+ * Saves a fuel dispense log to Firestore.
  */
 export async function saveFuelDispenseToFirestore(dispense: FuelDispense): Promise<void> {
   if (isSupabaseConfigured()) {
@@ -1304,6 +1256,23 @@ export async function deleteFuelEntryFromFirestore(id: string): Promise<void> {
 /**
  * Subscribes to real-time updates for preventive plans.
  */
+/**
+ * Safely merges preventive plans from remote database (Firestore / Supabase)
+ * with INITIAL_PREVENTIVE_PLANS and local cache.
+ */
+function processPreventivePlanItems(remoteItems: PreventivePlan[]): PreventivePlan[] {
+  const planMap = new Map<string, PreventivePlan>();
+  INITIAL_PREVENTIVE_PLANS.forEach((p) => planMap.set(p.id, p));
+  loadPreventivePlans().forEach((p) => planMap.set(p.id, p));
+  remoteItems.forEach((p) => planMap.set(p.id, p));
+  const finalPlans = Array.from(planMap.values());
+  savePreventivePlans(finalPlans);
+  return finalPlans;
+}
+
+/**
+ * Subscribes to real-time updates for preventive plans.
+ */
 export function subscribePreventivePlans(
   onUpdate: (plans: PreventivePlan[]) => void,
   onError?: (error: Error) => void
@@ -1311,14 +1280,9 @@ export function subscribePreventivePlans(
   if (isSupabaseConfigured()) {
     return subscribeSupabaseCollection<PreventivePlan>(
       PREVENTIVE_PLANS_COLLECTION,
-      (remoteItems) => {
-        const planMap = new Map<string, PreventivePlan>();
-        INITIAL_PREVENTIVE_PLANS.forEach((p) => planMap.set(p.id, p));
-        loadPreventivePlans().forEach((p) => planMap.set(p.id, p));
-        remoteItems.forEach((p) => planMap.set(p.id, p));
-        const finalPlans = Array.from(planMap.values());
-        savePreventivePlans(finalPlans);
-        onUpdate(finalPlans);
+      (items) => {
+        const processed = processPreventivePlanItems(items);
+        onUpdate(processed);
       },
       INITIAL_PREVENTIVE_PLANS,
       onError
@@ -1341,13 +1305,7 @@ export function subscribePreventivePlans(
         firestorePlans.push(docSnap.data() as PreventivePlan);
       });
 
-      const planMap = new Map<string, PreventivePlan>();
-      INITIAL_PREVENTIVE_PLANS.forEach((p) => planMap.set(p.id, p));
-      loadPreventivePlans().forEach((p) => planMap.set(p.id, p));
-      firestorePlans.forEach((p) => planMap.set(p.id, p)); // Firestore takes precedence
-
-      const finalPlans = Array.from(planMap.values());
-      savePreventivePlans(finalPlans);
+      const finalPlans = processPreventivePlanItems(firestorePlans);
       onUpdate(finalPlans);
     },
     (err) => {
@@ -1399,6 +1357,23 @@ export async function deletePreventivePlanFromFirestore(id: string): Promise<voi
 }
 
 /**
+ * Safely merges preventive records from remote database (Firestore / Supabase)
+ * with INITIAL_PREVENTIVE_RECORDS and local cache.
+ */
+function processPreventiveRecordItems(remoteItems: PreventiveRecord[]): PreventiveRecord[] {
+  const recMap = new Map<string, PreventiveRecord>();
+  INITIAL_PREVENTIVE_RECORDS.forEach((r) => recMap.set(r.id, r));
+  loadPreventiveRecords().forEach((r) => recMap.set(r.id, r));
+  remoteItems.forEach((r) => recMap.set(r.id, r));
+
+  const finalRecords = Array.from(recMap.values()).sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+  savePreventiveRecords(finalRecords);
+  return finalRecords;
+}
+
+/**
  * Subscribes to real-time updates for preventive history records (in descending order by date).
  */
 export function subscribePreventiveRecords(
@@ -1408,17 +1383,9 @@ export function subscribePreventiveRecords(
   if (isSupabaseConfigured()) {
     return subscribeSupabaseCollection<PreventiveRecord>(
       PREVENTIVE_RECORDS_COLLECTION,
-      (remoteItems) => {
-        const recMap = new Map<string, PreventiveRecord>();
-        INITIAL_PREVENTIVE_RECORDS.forEach((r) => recMap.set(r.id, r));
-        loadPreventiveRecords().forEach((r) => recMap.set(r.id, r));
-        remoteItems.forEach((r) => recMap.set(r.id, r));
-
-        const finalRecords = Array.from(recMap.values()).sort(
-          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-        );
-        savePreventiveRecords(finalRecords);
-        onUpdate(finalRecords);
+      (items) => {
+        const processed = processPreventiveRecordItems(items);
+        onUpdate(processed);
       },
       INITIAL_PREVENTIVE_RECORDS,
       onError
@@ -1441,15 +1408,7 @@ export function subscribePreventiveRecords(
         firestoreRecords.push(docSnap.data() as PreventiveRecord);
       });
 
-      const recMap = new Map<string, PreventiveRecord>();
-      INITIAL_PREVENTIVE_RECORDS.forEach((r) => recMap.set(r.id, r));
-      loadPreventiveRecords().forEach((r) => recMap.set(r.id, r));
-      firestoreRecords.forEach((r) => recMap.set(r.id, r)); // Firestore takes precedence
-
-      const finalRecords = Array.from(recMap.values()).sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
-      savePreventiveRecords(finalRecords);
+      const finalRecords = processPreventiveRecordItems(firestoreRecords);
       onUpdate(finalRecords);
     },
     (err) => {
@@ -1517,6 +1476,36 @@ export async function deletePreventiveRecordFromFirestore(id: string): Promise<v
 /**
  * Subscribes to real-time updates for measurement deductions collection.
  */
+/**
+ * Safely merges measurement deductions from remote database (Firestore / Supabase)
+ * with OFFICIAL_DEDUCTIONS and local cache.
+ */
+function processMeasurementDeductionItems(remoteItems: MeasurementDeduction[]): MeasurementDeduction[] {
+  const deductionMap = new Map<string, MeasurementDeduction>();
+  // Load official deductions as base
+  OFFICIAL_DEDUCTIONS.forEach((d) => deductionMap.set(d.id, d));
+  loadMeasurementDeductions().forEach((d) => deductionMap.set(d.id, d));
+
+  remoteItems.forEach((data) => {
+    // Ignore old mock items
+    if (data.prefix !== 'MC005' && data.prefix !== 'CAF51' && data.prefix !== 'CBA73' && data.prefix !== 'ESC02') {
+      deductionMap.set(data.id, {
+        ...data,
+        id: data.id,
+      });
+    }
+  });
+
+  const deductions = Array.from(deductionMap.values());
+  // Sort newest start date first
+  deductions.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+  saveMeasurementDeductions(deductions);
+  return deductions;
+}
+
+/**
+ * Subscribes to real-time updates for measurement deductions collection.
+ */
 export function subscribeMeasurementDeductions(
   callback: (deductions: MeasurementDeduction[]) => void,
   onError?: (err: Error) => void
@@ -1524,20 +1513,11 @@ export function subscribeMeasurementDeductions(
   if (isSupabaseConfigured()) {
     return subscribeSupabaseCollection<MeasurementDeduction>(
       MEASUREMENT_DEDUCTIONS_COLLECTION,
-      (remoteItems) => {
-        const deductionMap = new Map<string, MeasurementDeduction>();
-        loadMeasurementDeductions().forEach((d) => deductionMap.set(d.id, d));
-        remoteItems.forEach((d) => {
-          if (d.prefix !== 'MC005' && d.prefix !== 'CAF51' && d.prefix !== 'CBA73' && d.prefix !== 'ESC02') {
-            deductionMap.set(d.id, d);
-          }
-        });
-        const deductions = Array.from(deductionMap.values());
-        deductions.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
-        saveMeasurementDeductions(deductions);
+      (items) => {
+        const deductions = processMeasurementDeductionItems(items);
         callback(deductions);
       },
-      OFFICIAL_MEASUREMENT_DEDUCTIONS,
+      OFFICIAL_DEDUCTIONS,
       onError
     );
   }
@@ -1547,28 +1527,15 @@ export function subscribeMeasurementDeductions(
     q,
     (snapshot) => {
       if (snapshot.empty) {
-        // Fallback to local storage if Firestore collection has no items yet
         const localData = loadMeasurementDeductions();
         callback(localData);
         return;
       }
-      const deductionMap = new Map<string, MeasurementDeduction>();
-      // Load official deductions as base
-      loadMeasurementDeductions().forEach((d) => deductionMap.set(d.id, d));
+      const remoteItems: MeasurementDeduction[] = [];
       snapshot.forEach((docSnap) => {
-        const data = docSnap.data() as MeasurementDeduction;
-        // Ignore old mock items
-        if (data.prefix !== 'MC005' && data.prefix !== 'CAF51' && data.prefix !== 'CBA73' && data.prefix !== 'ESC02') {
-          deductionMap.set(docSnap.id, {
-            ...data,
-            id: docSnap.id,
-          });
-        }
+        remoteItems.push(docSnap.data() as MeasurementDeduction);
       });
-      const deductions = Array.from(deductionMap.values());
-      // Sort newest start date first
-      deductions.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
-      saveMeasurementDeductions(deductions);
+      const deductions = processMeasurementDeductionItems(remoteItems);
       callback(deductions);
     },
     (error) => {
@@ -1627,6 +1594,67 @@ export async function deleteMeasurementDeductionFromFirestore(id: string): Promi
 // =======================================================
 
 /**
+ * Safely merges corrective maintenance items from remote database (Firestore / Supabase)
+ * with INITIAL_CORRECTIVE_MAINTENANCES and local cache, rehydrating photos from IndexedDB.
+ */
+async function processCorrectiveMaintenanceItems(remoteItems: CorrectiveMaintenance[]): Promise<CorrectiveMaintenance[]> {
+  const recordsMap = new Map<string, CorrectiveMaintenance>();
+  INITIAL_CORRECTIVE_MAINTENANCES.forEach((r) => recordsMap.set(r.id, r));
+  loadCorrectiveMaintenances().forEach((r) => recordsMap.set(r.id, r));
+
+  // Load cached photos from IndexedDB for robust rehydration
+  let cachedPhotosMap = new Map<string, string>();
+  try {
+    const idbPhotos = await loadAllCorrectivePhotosFromIndexedDB();
+    idbPhotos.forEach((cp) => {
+      if (cp.id && cp.dataUrl) {
+        cachedPhotosMap.set(cp.id, cp.dataUrl);
+      }
+    });
+  } catch {
+    // ignore IDB read error
+  }
+
+  remoteItems.forEach((remote) => {
+    const local = recordsMap.get(remote.id);
+
+    // Merge and rehydrate photos so photos are never lost or blanked
+    let photos = Array.isArray(remote.photos) ? [...remote.photos] : (local?.photos || []);
+    photos = photos.map((p) => {
+      if (!p.dataUrl) {
+        const fromIdb = cachedPhotosMap.get(p.id);
+        if (fromIdb) return { ...p, dataUrl: fromIdb };
+        const fromLocal = local?.photos?.find((lp) => lp.id === p.id || lp.name === p.name);
+        if (fromLocal?.dataUrl) return { ...p, dataUrl: fromLocal.dataUrl };
+      }
+      return p;
+    });
+
+    // Ensure photos with dataUrl are persisted in IndexedDB and memory cache
+    photos.forEach((p) => {
+      if (p && p.id && p.dataUrl) {
+        cachedPhotosMap.set(p.id, p.dataUrl);
+        saveCorrectivePhotoToIndexedDB(p).catch(() => {});
+      }
+    });
+
+    recordsMap.set(remote.id, {
+      ...(local || {}),
+      ...remote,
+      photos,
+      id: remote.id,
+    });
+  });
+
+  // Sort newest open date first
+  const records = Array.from(recordsMap.values()).sort(
+    (a, b) => new Date(b.openDate).getTime() - new Date(a.openDate).getTime()
+  );
+  saveCorrectiveMaintenances(records);
+  return records;
+}
+
+/**
  * Subscribes to real-time updates for corrective maintenances collection.
  */
 export function subscribeCorrectiveMaintenances(
@@ -1636,53 +1664,8 @@ export function subscribeCorrectiveMaintenances(
   if (isSupabaseConfigured()) {
     return subscribeSupabaseCollection<CorrectiveMaintenance>(
       CORRECTIVE_MAINTENANCES_COLLECTION,
-      async (remoteItems) => {
-        const recordsMap = new Map<string, CorrectiveMaintenance>();
-        INITIAL_CORRECTIVE_MAINTENANCES.forEach((r) => recordsMap.set(r.id, r));
-        loadCorrectiveMaintenances().forEach((r) => recordsMap.set(r.id, r));
-
-        let cachedPhotosMap = new Map<string, string>();
-        try {
-          const idbPhotos = await loadAllCorrectivePhotosFromIndexedDB();
-          idbPhotos.forEach((cp) => {
-            if (cp.id && cp.dataUrl) {
-              cachedPhotosMap.set(cp.id, cp.dataUrl);
-            }
-          });
-        } catch {}
-
-        remoteItems.forEach((remote) => {
-          const local = recordsMap.get(remote.id);
-          let photos = Array.isArray(remote.photos) ? [...remote.photos] : (local?.photos || []);
-          photos = photos.map((p) => {
-            if (!p.dataUrl) {
-              const fromIdb = cachedPhotosMap.get(p.id);
-              if (fromIdb) return { ...p, dataUrl: fromIdb };
-              const fromLocal = local?.photos?.find((lp) => lp.id === p.id || lp.name === p.name);
-              if (fromLocal?.dataUrl) return { ...p, dataUrl: fromLocal.dataUrl };
-            }
-            return p;
-          });
-
-          photos.forEach((p) => {
-            if (p && p.id && p.dataUrl) {
-              cachedPhotosMap.set(p.id, p.dataUrl);
-              saveCorrectivePhotoToIndexedDB(p).catch(() => {});
-            }
-          });
-
-          recordsMap.set(remote.id, {
-            ...(local || {}),
-            ...remote,
-            photos,
-            id: remote.id,
-          });
-        });
-
-        const records = Array.from(recordsMap.values()).sort(
-          (a, b) => new Date(b.openDate).getTime() - new Date(a.openDate).getTime()
-        );
-        saveCorrectiveMaintenances(records);
+      async (items) => {
+        const records = await processCorrectiveMaintenanceItems(items);
         callback(records);
       },
       INITIAL_CORRECTIVE_MAINTENANCES,
@@ -1695,65 +1678,16 @@ export function subscribeCorrectiveMaintenances(
     q,
     async (snapshot) => {
       if (snapshot.empty) {
-        // Fallback to local storage if Firestore collection has no items yet
         const localData = loadCorrectiveMaintenances();
         callback(localData.length > 0 ? localData : INITIAL_CORRECTIVE_MAINTENANCES);
         return;
       }
-      const recordsMap = new Map<string, CorrectiveMaintenance>();
-      INITIAL_CORRECTIVE_MAINTENANCES.forEach((r) => recordsMap.set(r.id, r));
-      loadCorrectiveMaintenances().forEach((r) => recordsMap.set(r.id, r));
-
-      // Load cached photos from IndexedDB for robust rehydration
-      let cachedPhotosMap = new Map<string, string>();
-      try {
-        const idbPhotos = await loadAllCorrectivePhotosFromIndexedDB();
-        idbPhotos.forEach((cp) => {
-          if (cp.id && cp.dataUrl) {
-            cachedPhotosMap.set(cp.id, cp.dataUrl);
-          }
-        });
-      } catch {
-        // ignore IDB read error
-      }
-
+      const remoteItems: CorrectiveMaintenance[] = [];
       snapshot.forEach((docSnap) => {
-        const remote = docSnap.data() as CorrectiveMaintenance;
-        const local = recordsMap.get(docSnap.id);
-
-        // Merge and rehydrate photos so photos are never lost or blanked
-        let photos = Array.isArray(remote.photos) ? [...remote.photos] : (local?.photos || []);
-        photos = photos.map((p) => {
-          if (!p.dataUrl) {
-            const fromIdb = cachedPhotosMap.get(p.id);
-            if (fromIdb) return { ...p, dataUrl: fromIdb };
-            const fromLocal = local?.photos?.find((lp) => lp.id === p.id || lp.name === p.name);
-            if (fromLocal?.dataUrl) return { ...p, dataUrl: fromLocal.dataUrl };
-          }
-          return p;
-        });
-
-        // Ensure photos with dataUrl are persisted in IndexedDB and memory cache
-        photos.forEach((p) => {
-          if (p && p.id && p.dataUrl) {
-            cachedPhotosMap.set(p.id, p.dataUrl);
-            saveCorrectivePhotoToIndexedDB(p).catch(() => {});
-          }
-        });
-
-        recordsMap.set(docSnap.id, {
-          ...(local || {}),
-          ...remote,
-          photos,
-          id: docSnap.id,
-        });
+        remoteItems.push(docSnap.data() as CorrectiveMaintenance);
       });
 
-      // Sort newest open date first
-      const records = Array.from(recordsMap.values()).sort(
-        (a, b) => new Date(b.openDate).getTime() - new Date(a.openDate).getTime()
-      );
-      saveCorrectiveMaintenances(records);
+      const records = await processCorrectiveMaintenanceItems(remoteItems);
       callback(records);
     },
     (error) => {
@@ -1839,7 +1773,25 @@ export async function deleteCorrectiveMaintenanceFromFirestore(id: string): Prom
 }
 
 /**
- * Subscribes to real-time updates for app users in Supabase or Firestore.
+ * Safely merges app users from remote database (Firestore / Supabase)
+ * with INITIAL_USERS and local cache.
+ */
+function processAppUserItems(remoteItems: AppUser[]): AppUser[] {
+  const userMap = new Map<string, AppUser>();
+  // Guarantee canonical admin exists
+  userMap.set(INITIAL_USERS[0].id, INITIAL_USERS[0]);
+  // Local fallback
+  loadAppUsers().forEach((u) => userMap.set(u.id, u));
+  // Remote truth takes precedence
+  remoteItems.forEach((u) => userMap.set(u.id, u));
+
+  const finalUsers = Array.from(userMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  saveAppUsers(finalUsers);
+  return finalUsers;
+}
+
+/**
+ * Subscribes to real-time updates for app users.
  */
 export function subscribeAppUsers(
   callback: (users: AppUser[]) => void,
@@ -1848,15 +1800,9 @@ export function subscribeAppUsers(
   if (isSupabaseConfigured()) {
     return subscribeSupabaseCollection<AppUser>(
       APP_USERS_COLLECTION,
-      (remoteUsers) => {
-        const userMap = new Map<string, AppUser>();
-        userMap.set(INITIAL_USERS[0].id, INITIAL_USERS[0]);
-        loadAppUsers().forEach((u) => userMap.set(u.id, u));
-        remoteUsers.forEach((u) => userMap.set(u.id, u));
-
-        const finalUsers = Array.from(userMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-        saveAppUsers(finalUsers);
-        callback(finalUsers);
+      (items) => {
+        const users = processAppUserItems(items);
+        callback(users);
       },
       INITIAL_USERS,
       onError
@@ -1874,21 +1820,12 @@ export function subscribeAppUsers(
         return;
       }
 
-      const users: AppUser[] = [];
+      const remoteUsers: AppUser[] = [];
       snapshot.forEach((docSnap) => {
-        users.push(docSnap.data() as AppUser);
+        remoteUsers.push(docSnap.data() as AppUser);
       });
 
-      const userMap = new Map<string, AppUser>();
-      // Guarantee canonical admin exists
-      userMap.set(INITIAL_USERS[0].id, INITIAL_USERS[0]);
-      // Local fallback
-      loadAppUsers().forEach((u) => userMap.set(u.id, u));
-      // Cloud Firestore truth takes precedence
-      users.forEach((u) => userMap.set(u.id, u));
-
-      const finalUsers = Array.from(userMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-      saveAppUsers(finalUsers);
+      const finalUsers = processAppUserItems(remoteUsers);
       callback(finalUsers);
     },
     (error) => {
@@ -1941,7 +1878,37 @@ export async function deleteUserFromFirestore(id: string): Promise<void> {
 }
 
 /**
- * Subscribes to real-time updates for app projects (obras) in Supabase or Firestore.
+ * Safely merges app projects from remote database (Firestore / Supabase)
+ * with INITIAL_PROJECTS and local cache.
+ */
+function processAppProjectItems(remoteItems: AppProject[]): AppProject[] {
+  const projMap = new Map<string, AppProject>();
+  projMap.set(UNIFIED_WORK_CODE, OFFICIAL_UNIFIED_PROJECT);
+  projMap.set(CLEAN_WORK_062_PA, OFFICIAL_062_PA_PROJECT);
+
+  // Local fallback for offline/cached projects
+  loadAppProjects().forEach((p) => {
+    const norm = normalizeProjectCode(p.code);
+    if (norm && norm !== UNIFIED_WORK_CODE && norm !== CLEAN_WORK_062_PA) {
+      projMap.set(norm, { ...p, code: norm });
+    }
+  });
+
+  // Remote cloud source of truth takes priority
+  remoteItems.forEach((p) => {
+    const norm = normalizeProjectCode(p.code);
+    if (norm && norm !== UNIFIED_WORK_CODE && norm !== CLEAN_WORK_062_PA) {
+      projMap.set(norm, { ...p, code: norm });
+    }
+  });
+
+  const finalProjects = Array.from(projMap.values()).sort((a, b) => a.code.localeCompare(b.code));
+  saveAppProjects(finalProjects);
+  return finalProjects;
+}
+
+/**
+ * Subscribes to real-time updates for app projects (obras).
  */
 export function subscribeAppProjects(
   callback: (projects: AppProject[]) => void,
@@ -1950,28 +1917,9 @@ export function subscribeAppProjects(
   if (isSupabaseConfigured()) {
     return subscribeSupabaseCollection<AppProject>(
       APP_PROJECTS_COLLECTION,
-      (remoteProjects) => {
-        const projMap = new Map<string, AppProject>();
-        projMap.set(UNIFIED_WORK_CODE, OFFICIAL_UNIFIED_PROJECT);
-        projMap.set(CLEAN_WORK_062_PA, OFFICIAL_062_PA_PROJECT);
-
-        loadAppProjects().forEach((p) => {
-          const norm = normalizeProjectCode(p.code);
-          if (norm && norm !== UNIFIED_WORK_CODE && norm !== CLEAN_WORK_062_PA) {
-            projMap.set(norm, { ...p, code: norm });
-          }
-        });
-
-        remoteProjects.forEach((p) => {
-          const norm = normalizeProjectCode(p.code);
-          if (norm && norm !== UNIFIED_WORK_CODE && norm !== CLEAN_WORK_062_PA) {
-            projMap.set(norm, { ...p, code: norm });
-          }
-        });
-
-        const finalProjects = Array.from(projMap.values()).sort((a, b) => a.code.localeCompare(b.code));
-        saveAppProjects(finalProjects);
-        callback(finalProjects);
+      (items) => {
+        const projects = processAppProjectItems(items);
+        callback(projects);
       },
       INITIAL_PROJECTS,
       onError
@@ -1989,33 +1937,12 @@ export function subscribeAppProjects(
         return;
       }
 
-      const projects: AppProject[] = [];
+      const remoteProjects: AppProject[] = [];
       snapshot.forEach((docSnap) => {
-        projects.push(docSnap.data() as AppProject);
+        remoteProjects.push(docSnap.data() as AppProject);
       });
 
-      const projMap = new Map<string, AppProject>();
-      projMap.set(UNIFIED_WORK_CODE, OFFICIAL_UNIFIED_PROJECT);
-      projMap.set(CLEAN_WORK_062_PA, OFFICIAL_062_PA_PROJECT);
-
-      // Local fallback for offline/cached projects
-      loadAppProjects().forEach((p) => {
-        const norm = normalizeProjectCode(p.code);
-        if (norm && norm !== UNIFIED_WORK_CODE && norm !== CLEAN_WORK_062_PA) {
-          projMap.set(norm, { ...p, code: norm });
-        }
-      });
-
-      // Firestore cloud source of truth takes priority
-      projects.forEach((p) => {
-        const norm = normalizeProjectCode(p.code);
-        if (norm && norm !== UNIFIED_WORK_CODE && norm !== CLEAN_WORK_062_PA) {
-          projMap.set(norm, { ...p, code: norm });
-        }
-      });
-
-      const finalProjects = Array.from(projMap.values()).sort((a, b) => a.code.localeCompare(b.code));
-      saveAppProjects(finalProjects);
+      const finalProjects = processAppProjectItems(remoteProjects);
       callback(finalProjects);
     },
     (error) => {
@@ -2069,8 +1996,8 @@ export async function deleteProjectFromFirestore(id: string): Promise<void> {
 
 export async function testFirestoreConnection(): Promise<boolean> {
   if (isSupabaseConfigured()) {
-    const res = await testSupabaseConnectionReal();
+    const res = await testSupabaseConnection();
     return res.success;
   }
-  return rawTestFirestore();
+  return rawTestFirestoreConnection();
 }

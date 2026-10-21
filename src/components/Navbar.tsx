@@ -204,30 +204,39 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
 
-            {/* Database Status Indicator / Botão de Sincronização Supabase */}
+            {/* Database Status Indicator / Botão de Conexão Supabase */}
             <button
               id="cloud-status-badge"
               type="button"
               onClick={onOpenCloudModal}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold border transition-all cursor-pointer hover:shadow-xs active:scale-95 ${
                 cloudStatus === 'connected'
-                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/25'
+                  ? cloudProvider === 'supabase'
+                    ? 'bg-teal-500/15 text-teal-800 dark:text-teal-300 border-teal-500/40 hover:bg-teal-500/25'
+                    : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
                   : cloudStatus === 'syncing'
-                  ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/40 animate-pulse'
+                  ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 animate-pulse'
                   : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border-neutral-300 dark:border-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-700'
               }`}
               title={
                 cloudProvider === 'supabase'
                   ? cloudStatus === 'connected'
                     ? 'Banco de dados Supabase conectado e sincronizado em tempo real entre computadores. Clique para gerenciar.'
-                    : 'Sincronizando com Supabase... Clique para detalhes.'
-                  : 'Modo local ou desconectado. Clique para conectar ao Supabase e compartilhar dados entre computadores.'
+                    : cloudStatus === 'syncing'
+                    ? 'Sincronizando com o Supabase...'
+                    : 'Supabase offline. Clique para reconectar.'
+                  : cloudStatus === 'connected'
+                  ? 'Banco em nuvem ativo. Clique para configurar o Supabase.'
+                  : 'Trabalhando em modo local. Clique para conectar o Supabase e compartilhar dados entre computadores na Hostinger.'
               }
             >
+              <Database className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
               <span
                 className={`w-2 h-2 rounded-full shrink-0 ${
                   cloudStatus === 'connected'
-                    ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.9)] animate-pulse'
+                    ? cloudProvider === 'supabase'
+                      ? 'bg-[#20bdae] shadow-[0_0_8px_rgba(32,189,174,0.9)] animate-pulse'
+                      : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.9)] animate-pulse'
                     : cloudStatus === 'syncing'
                     ? 'bg-amber-500'
                     : 'bg-neutral-400'

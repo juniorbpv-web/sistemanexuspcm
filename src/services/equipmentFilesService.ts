@@ -12,6 +12,12 @@ import {
   Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import {
+  isSupabaseConfigured,
+  upsertRecordToSupabase,
+  deleteRecordFromSupabase,
+  subscribeSupabaseCollection,
+} from './supabaseService';
 
 const DB_NAME = 'MakmoFleet_EquipmentFilesDB';
 const DB_VERSION = 1;
@@ -142,6 +148,12 @@ export async function deleteFilesByEquipmentId(equipmentId: string): Promise<voi
  */
 export async function saveEquipmentFileToFirestore(file: EquipmentFile): Promise<void> {
   try {
+    if (isSupabaseConfigured()) {
+      await upsertRecordToSupabase('equipment_files', file.id, file);
+      return;
+    }
+
+    if (!db) return;
     const docRef = doc(db, FIRESTORE_COLLECTION, file.id);
     const dataSize = file.dataUrl ? file.dataUrl.length : 0;
 
@@ -170,30 +182,73 @@ export async function saveEquipmentFileToFirestore(file: EquipmentFile): Promise
       await setDoc(docRef, cleanObject(file));
     }
   } catch (err) {
-    console.warn('Erro ao salvar arquivo de equipamento no Firestore (armazenado em cache local):', err);
+    console.warn('Erro ao salvar arquivo de equipamento no banco (armazenado em cache local):', err);
   }
 }
 
 /**
- * Deletes an equipment file from Firestore.
+ * Deletes an equipment file from Firestore or Supabase.
  */
 export async function deleteEquipmentFileFromFirestore(id: string): Promise<void> {
   try {
+    if (isSupabaseConfigured()) {
+      await deleteRecordFromSupabase('equipment_files', id);
+      return;
+    }
+
+    if (!db) return;
     const docRef = doc(db, FIRESTORE_COLLECTION, id);
     await deleteDoc(docRef);
   } catch (err) {
-    console.warn('Erro ao deletar arquivo de equipamento no Firestore:', err);
+    console.warn('Erro ao deletar arquivo de equipamento no banco:', err);
   }
 }
 
 /**
- * Subscribes to real-time updates for equipment files from Firestore.
+ * Subscribes to real-time updates for equipment files from Firestore or Supabase.
  */
 export function subscribeEquipmentFiles(
   onUpdate: (files: EquipmentFile[]) => void,
   onError?: (err: Error) => void
 ): Unsubscribe {
+  if (isSupabaseConfigured()) {
+    return subscribeSupabaseCollection<EquipmentFile>(
+      'equipment_files',
+      async (remoteFiles) => {
+        const localFiles = await loadEquipmentFilesFromIndexedDB();
+        const localMap = new Map(localFiles.map((f) => [f.id, f]));
+
+        const mergedFiles: EquipmentFile[] = remoteFiles.map((remote) => {
+          const local = localMap.get(remote.id);
+          if (local && local.dataUrl && (!remote.dataUrl || remote.dataUrl.length === 0)) {
+            return { ...remote, dataUrl: local.dataUrl };
+          }
+          if (remote.dataUrl && (!local || !local.dataUrl)) {
+            saveEquipmentFileToIndexedDB(remote).catch(() => {});
+          }
+          return remote;
+        });
+
+        const remoteIds = new Set(remoteFiles.map((f) => f.id));
+        for (const local of localFiles) {
+          if (!remoteIds.has(local.id)) {
+            mergedFiles.push(local);
+          }
+        }
+
+        mergedFiles.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+        onUpdate(mergedFiles);
+      },
+      [],
+      onError
+    );
+  }
+
   try {
+    if (!db) {
+      loadEquipmentFilesFromIndexedDB().then(onUpdate).catch(() => onUpdate([]));
+      return () => {};
+    }
     const q = query(collection(db, FIRESTORE_COLLECTION), orderBy('uploadedAt', 'desc'));
     return onSnapshot(
       q,

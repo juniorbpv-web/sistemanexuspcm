@@ -20,7 +20,7 @@ import {
   INITIAL_CORRECTIVE_MAINTENANCES,
 } from '../data/initialData';
 import { INITIAL_USERS, INITIAL_PROJECTS } from '../data/initialAuthData';
-import { OFFICIAL_MEASUREMENT_DEDUCTIONS } from '../data/officialDeductionsData';
+import { OFFICIAL_MEASUREMENT_DEDUCTIONS as OFFICIAL_DEDUCTIONS } from '../data/officialDeductionsData';
 import {
   loadEquipments,
   loadDailyLogs,
@@ -411,7 +411,7 @@ export async function seedSupabaseInitialData(force = false): Promise<{
       { name: 'preventive_plans', items: mergeWithLocal(INITIAL_PREVENTIVE_PLANS, loadPreventivePlans) },
       { name: 'preventive_records', items: mergeWithLocal(INITIAL_PREVENTIVE_RECORDS, loadPreventiveRecords) },
       { name: 'corrective_maintenances', items: mergeWithLocal(INITIAL_CORRECTIVE_MAINTENANCES, loadCorrectiveMaintenances) },
-      { name: 'measurement_deductions', items: mergeWithLocal(OFFICIAL_MEASUREMENT_DEDUCTIONS, loadMeasurementDeductions) },
+      { name: 'measurement_deductions', items: mergeWithLocal(OFFICIAL_DEDUCTIONS, loadMeasurementDeductions) },
       { name: 'app_users', items: mergeWithLocal(INITIAL_USERS, loadAppUsers) },
       { name: 'app_projects', items: mergeWithLocal(INITIAL_PROJECTS, loadAppProjects) },
     ];

@@ -456,11 +456,11 @@ export const AdminManagementModal: React.FC<AdminManagementModalProps> = ({
               <button
                 type="button"
                 onClick={onOpenSupabaseConfig}
-                className="bg-teal-600 hover:bg-teal-500 active:scale-95 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                title="Configurar Conexão e Sincronização Supabase (Compartilhamento entre computadores)"
+                className="bg-teal-600 hover:bg-teal-500 active:scale-95 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer border border-teal-500/40"
+                title="Configurar Conexão e Sincronização em Nuvem (Supabase / Hostinger)"
               >
-                <Database className="w-4 h-4" />
-                <span className="hidden sm:inline">Banco Supabase</span>
+                <Database className="w-3.5 h-3.5 text-teal-200" />
+                <span>Banco Supabase</span>
               </button>
             )}
 

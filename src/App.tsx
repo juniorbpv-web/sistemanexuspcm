@@ -136,14 +136,13 @@ import {
 } from './services/gmailService';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { MakmoLogo } from './components/MakmoLogo';
-
 import { OverduePreventiveItem } from './components/OverdueNotificationBell';
+import { SupabaseConnectionModal } from './components/SupabaseConnectionModal';
 import {
-  initSupabaseRemoteConfig,
   isSupabaseConfigured,
+  initSupabaseRemoteConfig,
   onSupabaseConfigChange,
 } from './services/supabaseService';
-import { SupabaseConnectionModal } from './components/SupabaseConnectionModal';
 
 export default function App() {
   // Authentication & Access Control state
@@ -190,10 +189,12 @@ export default function App() {
   const [isOverdueBellOpen, setIsOverdueBellOpen] = useState(false);
   const [preventiveStatusFilter, setPreventiveStatusFilter] = useState<string>('todos');
   const [preventiveTargetEquipmentId, setPreventiveTargetEquipmentId] = useState<string | undefined>(undefined);
-  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
+
 
   // Toast notifications
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
+  const [cloudSyncKey, setCloudSyncKey] = useState(0);
 
   // Apply dark mode class to HTML root
   useEffect(() => {
@@ -213,29 +214,7 @@ export default function App() {
     } catch {}
   }, []);
 
-  // Fetch Supabase configuration from server API if not in env/local, so all users on Hostinger share it
-  useEffect(() => {
-    initSupabaseRemoteConfig().then((configured) => {
-      if (configured) {
-        testFirestoreConnection().then((connected) => {
-          setCloudStatus(connected ? 'connected' : 'offline');
-        });
-      }
-    });
-
-    const unsub = onSupabaseConfigChange(() => {
-      testFirestoreConnection().then((connected) => {
-        setCloudStatus(connected ? 'connected' : 'offline');
-        if (connected) {
-          seedInitialDataIfEmpty();
-        }
-      });
-    });
-
-    return unsub;
-  }, []);
-
-  // Firebase connection and real-time subscription setup
+  // Database connection and real-time subscription setup (Supabase / Firestore)
   useEffect(() => {
     let unsubEquipments: (() => void) | null = null;
     let unsubLogs: (() => void) | null = null;
@@ -249,10 +228,21 @@ export default function App() {
     let unsubUsers: (() => void) | null = null;
     let unsubProjects: (() => void) | null = null;
 
-    async function initFirebase() {
+    // Check remote server config on Hostinger
+    initSupabaseRemoteConfig().then((configured) => {
+      if (configured) {
+        setCloudSyncKey((k) => k + 1);
+      }
+    });
+
+    const unsubConfig = onSupabaseConfigChange(() => {
+      setCloudSyncKey((k) => k + 1);
+    });
+
+    async function initDatabase() {
       try {
         setCloudStatus('syncing');
-        // Validate connection to server
+        // Validate connection to server / cloud
         const connected = await testFirestoreConnection();
         if (connected) {
           setCloudStatus('connected');
@@ -390,9 +380,10 @@ export default function App() {
       });
     }
 
-    initFirebase();
+    initDatabase();
 
     return () => {
+      unsubConfig();
       if (unsubEquipments) unsubEquipments();
       if (unsubLogs) unsubLogs();
       if (unsubDispenses) unsubDispenses();
@@ -405,7 +396,7 @@ export default function App() {
       if (unsubUsers) unsubUsers();
       if (unsubProjects) unsubProjects();
     };
-  }, []);
+  }, [cloudSyncKey]);
 
   // Toast helpers
   const addToast = (type: 'success' | 'error' | 'info', message: string, title?: string) => {
@@ -1873,7 +1864,7 @@ export default function App() {
           correctiveCount={filteredCorrectiveMaintenances.length}
           onExportCSV={handleExportCSV}
           cloudStatus={cloudStatus}
-          cloudProvider={isSupabaseConfigured() ? 'supabase' : 'local'}
+          cloudProvider={isSupabaseConfigured() ? 'supabase' : cloudStatus === 'connected' ? 'firestore' : 'local'}
           onOpenCloudModal={() => setIsSupabaseModalOpen(true)}
           currentUser={currentUser}
           appUser={session?.user}
@@ -2052,14 +2043,12 @@ export default function App() {
         />
       )}
 
-      {/* Supabase Cloud Connection & Sync Modal */}
+      {/* Supabase Connection & Multi-Computer Cloud Sync Modal */}
       <SupabaseConnectionModal
         isOpen={isSupabaseModalOpen}
         onClose={() => setIsSupabaseModalOpen(false)}
         onConfigChanged={() => {
-          testFirestoreConnection().then((connected) => {
-            setCloudStatus(connected ? 'connected' : 'offline');
-          });
+          setCloudSyncKey((k) => k + 1);
         }}
         addToast={addToast}
       />

@@ -568,3 +568,5 @@ export const OFFICIAL_MEASUREMENT_DEDUCTIONS: MeasurementDeduction[] = [
     ],
   },
 ];
+
+export const OFFICIAL_DEDUCTIONS = OFFICIAL_MEASUREMENT_DEDUCTIONS;
